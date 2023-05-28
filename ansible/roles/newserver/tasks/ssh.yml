@@ -1,0 +1,11 @@
+  - name: Create .ssh directory for {{ ansible_user }}
+    file:
+      path: "/home/{{ ansible_user }}/.ssh"
+      state: directory
+      mode: '0700'
+
+  - name: Add public key to authorized_keys file
+    authorized_key:
+      user: "{{ ansible_user }}"
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"

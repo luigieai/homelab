@@ -1,0 +1,15 @@
+proxmox:
+  hosts:
+    csgo.home:
+    containers.home:
+    vpn.home:
+  vars:
+    ansible_user: luigi
+    ansible_become: true
+
+docker:
+  hosts:
+    containers.home:
+  vars:
+    ansible_user: luigi
+    ansible_become: true

@@ -1,0 +1,19 @@
+---
+# tasks file for newserver
+- name: SSH key task
+  include_tasks: ssh.yml
+  vars:
+    become: true
+  tags: sshkey
+
+- name: No sudo password
+  include_tasks: nosudopwd.yml
+  vars:
+    become: true
+  tags: nosudopwd
+
+- name: Update System
+  include_tasks: update.yml
+  vars:
+    become: true
+  tags: updatesystem

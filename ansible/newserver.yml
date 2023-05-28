@@ -1,0 +1,4 @@
+- hosts: proxmox
+  tasks:
+    - ansible.builtin.import_role:
+        name: newserver

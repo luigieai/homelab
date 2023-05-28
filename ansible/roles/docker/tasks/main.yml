@@ -1,0 +1,31 @@
+---
+- name: Install Docker & PIP (For managing container wirh ansible)
+  include_role:
+    name: "{{ item }}"
+  with_items:
+    - geerlingguy.pip
+    - geerlingguy.docker
+  vars:
+    become: true
+    pip_install_packages:
+      - name: docker
+  tags: installdocker
+
+- name: Create volume for portainer
+  community.docker.docker_volume:
+    name: portainer_data
+  tags: installportainer
+
+- name: Create a portainer container
+  community.docker.docker_container:
+      name: portainer
+      image: portainer/portainer-ce:2.18.3
+      state: started
+      volumes:
+        - portainer_data:/data
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports: 
+        - "8000:8000"
+        - "9443:9443"
+      restart_policy: "always"
+  tags: installportainer
