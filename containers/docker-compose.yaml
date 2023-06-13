@@ -5,7 +5,7 @@ services:
     environment:
       - WG_HOST=home.marioverde.com.br
       # ⚠️ Change this in Portainer configs, see README
-      - PASSWORD=foobar123
+      #- PASSWORD=foobar123
     image: weejewel/wg-easy
     container_name: wg-easy
     hostname: wg-easy
