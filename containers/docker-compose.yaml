@@ -1,35 +1,17 @@
 version: "3.8"
 
 services:
-  wireguard:
-    image: linuxserver/wireguard:latest
-    container_name: wireguard
+  wireguard-ui:
+    image: ngoduykhanh/wireguard-ui:latest
+    container_name: wireguard-ui
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-    volumes:
-      - ./config:/config
-    ports:
-      # port for wireguard-ui. this must be set here as the `wireguard-ui` container joins the network of this container and hasn't its own network over which it could publish the ports
-      - "5000:5000"
-      # port of the wireguard server
-      - "51821:51821/udp"
-    environment:
-      - PEERS
-      - SERVERPORT=51821
-
-  wireguard-ui:
-    image: ngoduykhanh/wireguard-ui:latest
-    container_name: wireguard-ui
-    depends_on:
-      - wireguard
-    cap_add:
-      - NET_ADMIN
-    # use the network of the 'wireguard' service. this enables to show active clients in the status page
-    network_mode: service:wireguard
+    # required to show active clients. with this set, you don't need to expose the ui port (5000) anymore
+    network_mode: host
     environment:
       - SENDGRID_API_KEY
       - EMAIL_FROM_ADDRESS
@@ -38,12 +20,12 @@ services:
       - WGUI_USERNAME=admin
       - WGUI_PASSWORD=admin
       - WG_CONF_TEMPLATE
-      - WGUI_MANAGE_START=true
-      - WGUI_MANAGE_RESTART=true
+      - WGUI_MANAGE_START=false
+      - WGUI_MANAGE_RESTART=false
     logging:
       driver: json-file
       options:
         max-size: 50m
     volumes:
       - ./db:/app/db
-      - ./config:/etc/wireguard
+      - /etc/wireguard:/etc/wireguard
