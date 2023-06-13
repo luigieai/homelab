@@ -17,6 +17,8 @@ services:
       - "5000:5000"
       # port of the wireguard server
       - "51820:51820/udp"
+    environment:
+      - PEERS
 
   wireguard-ui:
     image: ngoduykhanh/wireguard-ui:latest
