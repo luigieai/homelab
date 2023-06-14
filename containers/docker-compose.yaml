@@ -44,7 +44,7 @@ services:
       - adguard-conf:/opt/adguardhome/work
 
 ## NGINX PROXY MANAGER
-  app:
+  nginx-proxy-manager:
     image: 'jc21/nginx-proxy-manager:latest'
     environment:
       PUID: 1000
