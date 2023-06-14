@@ -1,6 +1,12 @@
 version: "3.8"
 
+volumes:
+#### ADGUARD
+  adguard-work:
+  adguard-conf:
+
 services:
+## VPN
   wg-easy:
     environment:
       # ⚠️ Change the server's hostname (clients will connect to):
@@ -22,3 +28,17 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+
+## ADGUARD
+  adguardhome:
+    container_name: adguardhome
+    image: adguard/adguardhome
+    restart: unless-stopped
+    network_mode: 'host'
+    ports:
+      - 53:53/udp
+      - 8080:80/tcp 
+      - 3000:3000/tcp 
+    volumes:
+      - adguard-work:/opt/adguardhome/conf
+      - adguard-conf:/opt/adguardhome/work
