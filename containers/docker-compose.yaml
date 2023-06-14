@@ -42,3 +42,16 @@ services:
     volumes:
       - adguard-work:/opt/adguardhome/conf
       - adguard-conf:/opt/adguardhome/work
+
+## NGINX PROXY MANAGER
+  app:
+    image: 'jc21/nginx-proxy-manager:latest'
+    environment:
+      PUID: 1000
+      PGID: 1000
+    restart: unless-stopped
+    ports:
+      - '80:80' # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81' # Admin Web Port
+      # Add any other Stream port you want to expose
