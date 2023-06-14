@@ -18,3 +18,11 @@ There's some sensitive variables, we should configure directly in portainer thes
 ```yaml
 - PASSWORD=<insert password to access the admin painel>
 ```
+
+### AdGuard Home
+Link: *https://github.com/AdguardTeam/AdGuardHome*
+
+I use AdGuard home for it's own purpose: safe browsing at DNS Level, also I'm actually using it as my local dns resolver for all my homelab
+
+**Variables** 
+You can configure everything on it's own UI
