@@ -2,8 +2,8 @@ version: "3.8"
 services:
   csgoretake:
     image: timche/csgo
-    mem_limit: 2048m
-    cpus: 2
+    #mem_limit: 2048m
+    #cpus: 2
     environment:
       - CSGO_WS_API_KEY #Portainer
       - CSGO_MAP="de_mirage"
