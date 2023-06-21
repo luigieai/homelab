@@ -10,8 +10,8 @@ services:
       - CSGO_MAX_PLAYERS=12
       - CSGO_HOSTNAME="16:9"
       - CSGO_RCON_PW
-      - CSGO_PW
       - CSGO_FORCE_NETSETTINGS=true
+      - CSGO_GSLT
     volumes:
       - csgoretake:/home/csgo/server
     network_mode: host
