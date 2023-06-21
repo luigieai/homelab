@@ -2,8 +2,16 @@ version: "3.8"
 services:
   csgoretake:
     image: timche/csgo
+    environment:
+      - CSGO_WS_API_KEY #Portainer
+      - CSGO_MAP="de_mirage"
+      - CSGO_MAX_PLAYERS=12
+      - CSGO_HOSTNAME="16:9"
+      - CSGO_RCON_PW
+      - CSGO_PW
+      - CSGO_FORCE_NETSETTINGS=true
     volumes:
-      - csgo:/home/csgo/server
+      - csgoretake:/home/csgo/server
     network_mode: host
 
 volumes:
