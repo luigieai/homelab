@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  csgoretake:
+    image: timche/csgo
+    volumes:
+      - csgo:/home/csgo/server
+    network_mode: host
+
+volumes:
+  csgoretake:

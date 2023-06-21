@@ -1,4 +1,17 @@
-- hosts: docker
+- hosts: dockerhost
   tasks:
-    - import_role:
+    - name: install docker
+      ansible.builtin.import_role:
         name: docker
+    - name: install portainer host
+      ansible.builtin.import_role:
+        name: portainer
+- hosts: dockeragent
+  tasks:
+    - name: install docker
+      ansible.builtin.import_role:
+        name: docker
+    - name: install portainer agent
+      ansible.builtin.import_role:
+        name: portainer
+     

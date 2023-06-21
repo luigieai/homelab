@@ -7,9 +7,16 @@ proxmox:
     ansible_user: luigi
     ansible_become: true
 
-docker:
+dockerhost:
   hosts:
     containers.home:
+  vars:
+    ansible_user: luigi
+    ansible_become: true
+
+dockeragent:
+  hosts:
+    csgo.home:
   vars:
     ansible_user: luigi
     ansible_become: true
