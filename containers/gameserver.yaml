@@ -17,13 +17,7 @@ services:
       - csgoretake:/home/csgo/server
     network_mode: host
 
-  blackmesa:
-    image: lacledeslan/gamesvr-blackmesa
-    command: ./srcds_run -game bms +map gasworks +maxplayers 4
-    volumes:
-      - blackmesa:/app
-    network_mode: host
+
 
 volumes:
   csgoretake:
-  blackmesa:
