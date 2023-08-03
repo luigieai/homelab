@@ -1,0 +1,3 @@
+---
+nomad_version: "1.6.1"
+nomad_architecture: "amd64"

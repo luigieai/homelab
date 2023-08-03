@@ -1,0 +1,64 @@
+- name: Download Nomad release
+  register: nomad_zip
+  ansible.builtin.get_url:
+    checksum: "sha256:https://releases.hashicorp.com/nomad/{{ nomad_version }}/nomad_{{ nomad_version }}_SHA256SUMS"
+    dest: "/tmp/nomad_{{ nomad_version }}_linux_{{ nomad_architecture }}.zip"
+    mode: "0644"
+    url: "https://releases.hashicorp.com/nomad/{{ nomad_version }}/nomad_{{ nomad_version }}_linux_{{ nomad_architecture }}.zip"
+
+- name: Install unzip
+  when: ansible_os_family == "Debian"
+  ansible.builtin.apt:
+    cache_valid_time: 3600
+    name: unzip
+    state: present
+
+- name: Extract Nomad binary
+  ansible.builtin.unarchive:
+    dest: /usr/local/bin
+    group: root
+    mode: "0755"
+    owner: root
+    remote_src: true
+    src: "{{ nomad_zip.dest }}"
+
+- name: Create Nomad group
+  ansible.builtin.group:
+    name: nomad
+    system: true
+
+- name: Create Nomad user
+  ansible.builtin.user:
+    comment: nomad user
+    create_home: false
+    group: nomad
+    home: /usr/local/etc/nomad.d
+    name: nomad
+    shell: /usr/bin/false
+    system: true
+
+- name: Create Nomad configuration directory
+  ansible.builtin.file:
+    group: nomad
+    mode: "0750"
+    owner: nomad
+    path: /usr/local/etc/nomad.d
+    state: directory
+  notify: Restart Nomad
+
+- name: Create Nomad data directory
+  ansible.builtin.file:
+    group: nomad
+    mode: "0750"
+    owner: nomad
+    path: /opt/nomad
+    state: directory
+
+- name: Create Nomad systemd service file
+  ansible.builtin.template:
+    dest: /etc/systemd/system/nomad.service
+    group: root
+    mode: "0444"
+    owner: root
+    src: nomad.service.j2
+  notify: Restart Nomad

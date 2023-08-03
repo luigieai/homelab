@@ -1,0 +1,19 @@
+- name: Install Nomad
+  ansible.builtin.include_tasks: install.yaml
+
+- name: Create Nomad agent configuration file
+  no_log: true
+  ansible.builtin.template:
+    dest: /usr/local/etc/nomad.d/nomad.hcl
+    group: nomad
+    lstrip_blocks: true
+    mode: "0440"
+    owner: nomad
+    src: nomad.hcl.j2
+  notify: Restart Nomad
+
+- name: Enable the Nomad service
+  ansible.builtin.systemd:
+    daemon_reload: true
+    enabled: true
+    name: nomad.service

@@ -1,0 +1,9 @@
+- hosts: nomad
+  tasks:
+    #NOMAD USER ADDED IN DOCKER GROUP BECAUSE OF VARIABLE AT INVENTORY!!!!!
+    - name: install docker
+      ansible.builtin.import_role:
+        name: docker
+    - name: install nomad
+      ansible.builtin.import_role:
+        name: nomad

@@ -20,3 +20,11 @@ dockeragent:
   vars:
     ansible_user: luigi
     ansible_become: true
+
+nomad:
+  hosts:
+    nomad.home:
+  vars:
+    ansible_user: root
+    docker_users:
+      - nomad
