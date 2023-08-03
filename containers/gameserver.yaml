@@ -17,7 +17,5 @@ services:
       - csgoretake:/home/csgo/server
     network_mode: host
 
-
-
 volumes:
   csgoretake:
