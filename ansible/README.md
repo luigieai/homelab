@@ -39,3 +39,10 @@ ansible-galaxy install geerlingguy.docker
 ### Portainer
 The role will install Docker + Portainer, we recommend using the role in **root** user as recommended in [portainer documentation](https://docs.portainer.io/start/install-ce/server/docker/linux#introduction).
 After running the playbook, access your portainer instance using *yourhostname.tld:9443*
+
+### NOMAD
+TODO!
+Dependencies: 
+```shell
+ansible-galaxy install robertdebock.vault
+```

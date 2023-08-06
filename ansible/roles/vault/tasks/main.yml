@@ -1,0 +1,22 @@
+---
+- name: Install Vault
+  include_role:
+    name: robertdebock.vault
+  vars:
+    vault_installation_method: binary
+  ignore_errors: true
+- name: Import vault configuration
+  ansible.builtin.template:
+    dest: /etc/vault.d/vault.hcl
+    group: vault
+    mode: "0444"
+    owner: vault
+    src: vault.hcl.j2
+- name: Daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart vault
+  ansible.builtin.service:
+    name: vault
+    state: restarted

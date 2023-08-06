@@ -1,4 +1,5 @@
 - hosts: nomad
+  become: yes
   tasks:
     #NOMAD USER ADDED IN DOCKER GROUP BECAUSE OF VARIABLE AT INVENTORY!!!!!
     - name: install docker
@@ -7,3 +8,6 @@
     - name: install nomad
       ansible.builtin.import_role:
         name: nomad
+    - name: install nomad
+      ansible.builtin.import_role:
+        name: vault # I NEED TO MANUALLY CREATE THIS ROLE BTW
