@@ -1,0 +1,6 @@
+nomad.lab.marioverde.com.br {
+    reverse_proxy "${endpoint}:4646"
+    tls {
+	    dns cloudflare "${cloudflare_api_token}"
+    }
+}
