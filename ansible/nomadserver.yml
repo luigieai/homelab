@@ -8,6 +8,6 @@
     - name: install nomad
       ansible.builtin.import_role:
         name: nomad
-    - name: install nomad
+    - name: install vault
       ansible.builtin.import_role:
         name: vault # I NEED TO MANUALLY CREATE THIS ROLE BTW

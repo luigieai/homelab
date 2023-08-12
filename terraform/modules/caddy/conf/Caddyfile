@@ -12,9 +12,15 @@ adguard.lab.marioverde.com.br {
 	    dns cloudflare "${cloudflare_api_token}"
     }
 }
-
+#
 vault.lab.marioverde.com.br {
-    reverse_proxy "${endpoint}:8200"
+    reverse_proxy "https://${endpoint}:8200" {
+        transport http {
+        tls
+        tls_insecure_skip_verify
+        }
+    }
+    
     tls {
 	    dns cloudflare "${cloudflare_api_token}"
     }
