@@ -28,3 +28,9 @@ nomad:
     ansible_user: root
     docker_users:
       - nomad
+
+zomboid:
+  hosts:
+    zomboid.home:
+  vars:
+    ansible_user: root
