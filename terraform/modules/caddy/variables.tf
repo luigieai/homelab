@@ -4,6 +4,6 @@ variable "cloudflare_api_token" {
 }
 
 variable "endpoint" {
-  type = string
+  type        = string
   description = "Nomad's server endpoint, the machine IP Address so we can reverse proxy our services."
 }

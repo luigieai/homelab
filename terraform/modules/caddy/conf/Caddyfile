@@ -12,6 +12,13 @@ adguard.lab.marioverde.com.br {
 	    dns cloudflare "${cloudflare_api_token}"
     }
 }
+red.lab.marioverde.com.br {
+    reverse_proxy "${endpoint}:8080"
+    encode gzip zstd
+    tls {
+	    dns cloudflare "${cloudflare_api_token}"
+    }
+}
 #
 vault.lab.marioverde.com.br {
     reverse_proxy "https://${endpoint}:8200" {
@@ -21,6 +28,22 @@ vault.lab.marioverde.com.br {
         }
     }
     
+    tls {
+	    dns cloudflare "${cloudflare_api_token}"
+    }
+}
+
+pgadmin.lab.marioverde.com.br {
+    reverse_proxy "${endpoint}:8090" {
+        header_up Redirect off
+        header_up Host {host}
+        header_up X-Scheme {scheme}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    log {
+        output stderr
+    }
     tls {
 	    dns cloudflare "${cloudflare_api_token}"
     }
