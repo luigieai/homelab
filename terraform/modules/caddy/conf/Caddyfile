@@ -48,3 +48,10 @@ pgadmin.lab.marioverde.com.br {
 	    dns cloudflare "${cloudflare_api_token}"
     }
 }
+
+keycloak.lab.marioverde.com.br {
+    reverse_proxy "${endpoint}:7080"
+    tls {
+	    dns cloudflare "${cloudflare_api_token}"
+    }
+}

@@ -1,12 +1,14 @@
+variable "endpoint" {
+  default = "192.168.15.92"
+}
 module "caddy" {
   source               = "./modules/caddy"
   cloudflare_api_token = var.cloudflare_caddy_api_token
-  endpoint             = "192.168.15.92"
+  endpoint             = var.endpoint
   providers = {
     nomad = nomad
   }
 }
-
 module "postgree" {
   source            = "./modules/postgreeSQL"
   postgree_user     = var.postgree_user
@@ -18,3 +20,14 @@ module "postgree" {
   }
 }
 
+module "keycloak" {
+  source            = "./modules/keycloak"
+  postgree_user     = var.postgree_user
+  postgree_password = var.postgree_password
+  postgree_endpoint = var.endpoint
+  KC_USER =  var.kc_user
+  KC_PASSWORD = var.kc_password
+  providers = {
+    nomad = nomad
+  }
+}

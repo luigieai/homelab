@@ -1,8 +1,3 @@
-variable "cloudflare_caddy_api_token" {
-  type        = string
-  description = "API key to edit TLS in DNS zones in Cloudflare used by Caddy"
-}
-
 variable "postgree_user" {
   type        = string
   description = "Postgree username"
@@ -13,22 +8,17 @@ variable "postgree_password" {
   description = "Poastgree password"
 }
 
-variable "pgadmin_user" {
+variable "postgree_endpoint" {
   type        = string
-  description = "PgAdmin username"
+  description = "Postgree endpoint"
 }
 
-variable "pgadmin_password" {
-  type        = string
-  description = "PgAdmin password"
-}
-
-variable "kc_user" {
+variable "KC_USER" {
   type        = string
   description = "Keycloak default user"
 }
 
-variable "kc_password" {
+variable "KC_PASSWORD" {
   type        = string
   description = "Keycloak default password"
 }
