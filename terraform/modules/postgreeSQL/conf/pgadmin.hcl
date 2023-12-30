@@ -27,7 +27,7 @@ job "pg_admin" {
         image = "dpage/pgadmin4:latest"
         #network_mode = "host"
         volumes = [
-          "${NOMAD_ALLOC_DIR}/pgadmin/servers.json:/pgadmin4/servers.json"
+          "${NOMAD_ALLOC_DIR}/pgadmin/servers.json:/pgadmin4/servers.json",
           "${NOMAD_ALLOC_DIR}/servers.passfile:/root/.pgpass",
         ]
 
