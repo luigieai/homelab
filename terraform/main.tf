@@ -25,8 +25,8 @@ module "keycloak" {
   postgree_user     = var.postgree_user
   postgree_password = var.postgree_password
   postgree_endpoint = var.endpoint
-  KC_USER =  var.kc_user
-  KC_PASSWORD = var.kc_password
+  KC_USER           = var.kc_user
+  KC_PASSWORD       = var.kc_password
   providers = {
     nomad = nomad
   }

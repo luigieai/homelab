@@ -27,15 +27,17 @@ job "pg_admin" {
         image = "dpage/pgadmin4:latest"
         #network_mode = "host"
         volumes = [
-          "${NOMAD_ALLOC_DIR}/pgadmin/servers.json:/pgadmin4/servers.json",
-          "${NOMAD_ALLOC_DIR}/servers.passfile:/root/.pgpass",
+          "${NOMAD_ALLOC_DIR}/pgadmin:/var/lib/pgadmin"
         ]
-
         ports = ["pgadmin_port"]
       }
+
+      
       env {
           PGADMIN_DEFAULT_EMAIL="${PGADMIN_USER}"
           PGADMIN_DEFAULT_PASSWORD="${PGADMIN_PASSWORD}"
+         #PGADMIN_SERVER_JSON_FILE="/pgadmin4/serverslist/servers.json"
+         # PGADMIN_DEFAULT_PASSWORD_FILE="/pgadmin4/serverslist/passwords"
       }
 
       service {
