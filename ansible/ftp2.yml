@@ -1,0 +1,41 @@
+---
+- name: Deploy VSFTP and Web Server
+  hosts: ftp
+  become: true
+  tasks:
+    - block:
+        - name: Install FTP package on RHEL
+          ansible.builtin.package:
+            name: vsftpd
+            state: present
+    - block:
+        - name: Modify FTP configuation
+          lineinfile:
+            dest: /etc/vsftpd/vsftpd.conf
+            backup: yes
+            state: present
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+          with_items:
+            - regexp: anonymous_enable=NO
+              line: anonymous_enable=YES
+            - regexp: anon_upload_enable
+              line: anon_upload_enable=YES
+            - regexp: anon_mkdir_write_enable
+              line: anon_mkdir_write_enable=YES
+            - regexp: listen=NO
+              line: listen=YES
+            - regexp: listen_ipv6=YES
+              line: listen_ipv6=NO
+            - regexp: local_enable=NO
+              line: local_enable=YES
+            - regexp: pam_service_name
+              line: pam_service_name=vsftpd
+            - regexp: write_enable=NO
+              line: write_enable=YES
+            - regexp: anon_root
+              line: anon_root=/var/ftp
+    - block:
+        - name: Start FTP service
+          become: yes
+          service: name=vsftpd state=restarted enabled=yes

@@ -34,3 +34,9 @@ zomboid:
     zomboid.home:
   vars:
     ansible_user: root
+
+ftp:
+  hosts:
+    ac.home:
+  vars:
+    ansible_user: root
