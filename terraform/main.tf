@@ -31,3 +31,11 @@ module "keycloak" {
     nomad = nomad
   }
 }
+
+module "icecast" {
+  source = "./modules/icecast"
+
+  providers = {
+    nomad = nomad
+  }
+}
