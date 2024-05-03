@@ -39,3 +39,13 @@ module "icecast" {
     nomad = nomad
   }
 }
+
+module "twitchminer" {
+  source = "./modules/twitchminer"
+  discord_webhook = var.discord_webhook
+  twitch_username = var.twitch_username
+  twitch_password = var.twitch_password
+  providers = {
+    nomad = nomad
+  }
+}
