@@ -83,6 +83,7 @@ twitch_miner = TwitchChannelPointsMiner(
 twitch_miner.mine(
     [
         "hydrasung",
+        "lilithomen"
         "bida",
         "gaules",
     ],                                  # Array of streamers (order = priority)
