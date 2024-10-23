@@ -20,6 +20,13 @@ module "postgree" {
   }
 }
 
+module "redis" {
+  source = "./modules/redis"
+  providers = {
+    nomad = nomad
+  }
+}
+
 module "keycloak" {
   source            = "./modules/keycloak"
   postgree_user     = var.postgree_user
