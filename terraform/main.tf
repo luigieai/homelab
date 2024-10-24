@@ -48,7 +48,7 @@ module "icecast" {
 }
 
 module "twitchminer" {
-  source = "./modules/twitchminer"
+  source          = "./modules/twitchminer"
   discord_webhook = var.discord_webhook
   twitch_username = var.twitch_username
   twitch_password = var.twitch_password

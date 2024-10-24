@@ -34,16 +34,16 @@ variable "kc_password" {
 }
 
 variable "discord_webhook" {
-  type = string
+  type        = string
   description = "Discord webhook"
 }
 
 variable "twitch_username" {
-  type = string
+  type        = string
   description = "Twitch username"
 }
 
 variable "twitch_password" {
-  type = string
-  description = "Twitch password"  
+  type        = string
+  description = "Twitch password"
 }

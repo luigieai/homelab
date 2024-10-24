@@ -4,7 +4,7 @@ resource "nomad_job" "app" {
     POSTGREE_ENDPOINT = var.postgree_endpoint
     POSTGREE_USER     = var.postgree_user
     POSTGREE_PASSWORD = var.postgree_password
-    KC_USER = var.KC_USER
-    KC_PASSWORD = var.KC_PASSWORD
+    KC_USER           = var.KC_USER
+    KC_PASSWORD       = var.KC_PASSWORD
   })
 }

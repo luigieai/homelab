@@ -4,11 +4,11 @@ variable "discord_webhook" {
 }
 
 variable "twitch_username" {
-  type = string
+  type        = string
   description = "Twitch username"
 }
 
 variable "twitch_password" {
-  type = string
-  description = "Twitch password"  
+  type        = string
+  description = "Twitch password"
 }
