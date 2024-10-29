@@ -47,18 +47,3 @@ variable "twitch_password" {
   type        = string
   description = "Twitch password"
 }
-
-variable "postiz_database" {
-  type        = string
-  description = "postiz database name"
-}
-
-variable "postiz_url" {
-  type        = string
-  description = "postiz url on caddy"
-}
-
-variable "postiz_jwt" {
-  type        = string
-  description = "postiz jwt token"
-}
