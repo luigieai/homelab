@@ -56,8 +56,8 @@ keycloak.lab.marioverde.com.br {
     }
 }
 
-dockge.lab.marioverde.com.br {
-    reverse_proxy 192.168.15.46:5001
+postiz.lab.marioverde.com.br {
+    reverse_proxy * "${endpoint}:5000"
     tls {
 	    dns cloudflare "${cloudflare_api_token}"
     }
