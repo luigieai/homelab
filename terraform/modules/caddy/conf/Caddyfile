@@ -56,3 +56,14 @@ keycloak.lab.marioverde.com.br {
     }
 }
 
+kavita.lab.marioverde.com.br {
+    encode gzip
+    reverse_proxy "${endpoint}:5002" {
+        header_up X-Forwarded-Host {host}:5002
+        header_up -Origin
+        header_up -Referer
+    }
+    tls {
+        dns cloudflare "${cloudflare_api_token}"
+    }
+}

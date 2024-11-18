@@ -56,3 +56,11 @@ module "twitchminer" {
     nomad = nomad
   }
 }
+
+module "kavita" {
+  source = "./modules/kavita"
+  
+  providers = {
+    nomad = nomad
+  }
+}
