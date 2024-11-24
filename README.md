@@ -43,3 +43,10 @@ My instnace of [Twitch-Channel-Points-Miner-v2](https://github.com/rdavydov/Twit
 
 # What I host in hetzner?
 At hetzner I "share" some personal services with my friends projetcs. But the basic infrascructure is running proxmox with NAT for an instance of pfSense for router. A traefik in a LXC for reverse proxy. And a nomad server with some jobs for running containers.
+
+## Setup terraform:
+
+```
+read -s PGPASSWORD
+export PGPASSWORD
+```
