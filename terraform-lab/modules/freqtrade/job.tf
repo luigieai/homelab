@@ -7,6 +7,9 @@ resource "nomad_job" "app" {
       exchange_password = var.exchange_password,
       telegram_token  = var.telegram_token,
       telegram_chat_id = var.telegram_chat_id
+      jwt_secret_key = var.jwt_secret_key
+      username = var.username
+      password = var.password
     })
     STRATEGY_NAME = file("${path.module}/conf/strategy.py")
   })

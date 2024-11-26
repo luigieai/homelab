@@ -12,3 +12,9 @@ module "freqtrade" {
   username           = var.username
   password           = var.password
 }
+module "deluge" {
+  source = "./modules/deluge"
+  providers = {
+    nomad = nomad
+  }
+}
