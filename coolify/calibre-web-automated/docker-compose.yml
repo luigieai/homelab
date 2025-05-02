@@ -4,8 +4,8 @@ services:
     container_name: calibre-web-automated
     environment:
       # Only change these if you know what you're doing
-      - PUID=1000
-      - PGID=1000
+      - PUID=110
+      - PGID=118
       # Edit to match your current timezone https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
       - TZ=UTC 
     volumes:
