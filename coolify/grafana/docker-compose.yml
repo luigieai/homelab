@@ -3,7 +3,7 @@ services:
     image: grafana/grafana-oss
     restart: unless-stopped
     environment:
-     - GF_SERVER_ROOT_URL=https://grafana.intranet.marioverde.com.br
+     - GF_SERVER_ROOT_URL=http://grafana.intranet.marioverde.com.br
     ports:
      - '3000:3000'
     volumes:
