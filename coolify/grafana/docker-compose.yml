@@ -6,5 +6,7 @@ services:
      - GF_SERVER_ROOT_URL=https://grafana.intranet.marioverde.com.br
     ports:
      - '3000:3000'
-  volumes:
+    volumes:
       - grafana-storage:/var/lib/grafana
+volumes:
+  grafana-storage: {}
