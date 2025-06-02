@@ -1,0 +1,56 @@
+- name: Home
+  # Optionally, if you only have a single page you can hide the desktop navigation for a cleaner look
+  # hide-desktop-navigation: true
+  columns:
+    - size: small
+      widgets:
+        - type: calendar
+          first-day-of-week: monday
+
+        - type: rss
+          limit: 10
+          collapse-after: 3
+          cache: 12h
+          feeds:
+            - url: https://selfh.st/rss/
+              title: selfh.st
+
+        - type: twitch-channels
+          channels:
+            - luigimarqs
+            - luigimarqs_dj
+            - djmozao_
+            - devMozao
+            - otzdarva
+            - mynameispit
+            - gamesdonequick
+            - DanielGray10
+            - Hens333
+
+    - size: full
+      widgets:
+        - type: group
+          widgets:
+            - type: hacker-news
+            - type: lobsters
+
+        - type: videos
+          channels:
+            - UCferfyAeOJAjS9GoI4td6gg # Canal peewee
+            - UCXdXbm5P-8UIQRNjF94uHTA # Derrotando filmes
+            - UC42ZBFGMKZkg4YaQ_T6pNEw # Cortes do Cescon
+            - UC2Gu2D6VkeVYwXA8wnLvSwg # Aryun
+            - UCDO__Z-tZD4bfG9m4AkK_uA # NotOtzarva
+            - UCI4aITQ3nx1QR_8RxFlPjRQ # Hens333
+            - UCwhYSrP7BT480a75aFAvIeg # NotHens333
+            - UCXuqSBlHAE6Xw-yeJA0Tunw # Linus Tech Tips
+            - UCR-DXc1voovS8nhAvccRZhg # Jeff Geerling
+            
+    - size: small
+      widgets:
+        - type: weather
+          location: São Paulo, Brazil
+          units: metric # alternatively "imperial"
+          hour-format: 12h # alternatively "24h"
+          # Optionally hide the location from being displayed in the widget
+          # hide-location: true
