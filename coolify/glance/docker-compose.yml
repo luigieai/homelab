@@ -11,4 +11,4 @@ services:
     ports:
       # port 8081 on host
       - 8081:8081
-    env_file: .env
+    
