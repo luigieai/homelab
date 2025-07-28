@@ -4,7 +4,7 @@ services:
     container_name: semaphore
     restart: unless-stopped
     environment:
-      SEMAPHORE_DB_USER: semaphore
+      SEMAPHORE_DB_USER: ${SEMAPHORE_DB_USER}
       SEMAPHORE_DB_PASS: ${SEMAPHORE_DB_PASS}
       SEMAPHORE_DB_HOST: ${SEMAPHORE_DB_HOST}
       SEMAPHORE_DB_PORT: 5432
