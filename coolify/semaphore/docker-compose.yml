@@ -20,7 +20,7 @@ services:
       TZ: America/Sao_Paulo
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.semaphore.rule=Host(`semaphore.internal.marioverde.com.br`)"
+      - "traefik.http.routers.semaphore.rule=Host(`semaphore.intranet.marioverde.com.br`)"
       - "traefik.http.routers.semaphore.entrypoints=websecure"
       - "traefik.http.routers.semaphore.tls.certresolver=letsencrypt"
       - "traefik.http.services.semaphore.loadbalancer.server.port=3000"
