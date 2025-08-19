@@ -22,7 +22,7 @@ services:
       # Providers
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
-      - --providers.file.directory=/etc/traefik/conf.d/
+      #- --providers.file.directory=/etc/traefik/conf.d/
       # Entrypoints
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
