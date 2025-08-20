@@ -35,7 +35,7 @@ services:
       - --certificatesresolvers.letsencrypt.acme.email=traefik@marioverde.com.br
       #- --certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/ssl/acme-prod.json
       # Logging
-      #- --log.level=DEBUG
+      - --log.level=DEBUG
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.intranet.marioverde.com.br`)"
