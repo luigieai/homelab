@@ -3,6 +3,8 @@ services:
     image: headscale/headscale:0.26.0
     container_name: headscale
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     command: serve
     labels:
       # Traefik configuration
