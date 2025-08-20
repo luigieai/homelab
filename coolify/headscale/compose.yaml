@@ -1,0 +1,77 @@
+services:
+  headscale:
+    image: headscale/headscale:0.26.0
+    container_name: headscale
+    restart: unless-stopped
+    command: serve
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      
+      # Main headscale service router
+      - "traefik.http.routers.headscale.rule=Host(`vpn.marioverde.com.br`)"
+      - "traefik.http.routers.headscale.entrypoints=websecure"
+      - "traefik.http.routers.headscale.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.headscale.service=headscale"
+      - "traefik.http.routers.headscale.middlewares=headscale-cors"
+      
+      # Rewrite router for root path
+      - "traefik.http.routers.headscale-rewrite.rule=Host(`vpn.marioverde.com.br`) && Path(`/`)"
+      - "traefik.http.routers.headscale-rewrite.entrypoints=websecure"
+      - "traefik.http.routers.headscale-rewrite.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.headscale-rewrite.service=headscale"
+      - "traefik.http.routers.headscale-rewrite.middlewares=headscale-rewrite"
+      
+      # Service configuration
+      - "traefik.http.services.headscale.loadbalancer.server.port=8080"
+      
+      # CORS middleware
+      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolallowmethods=GET,POST,PUT"
+      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolalloworiginlist=https://headscale.app.marioverde.com.br"
+      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.headscale-cors.headers.addvaryheader=true"
+      
+      # Rewrite middleware
+      - "traefik.http.middlewares.headscale-rewrite.addprefix.prefix=/admin"
+      
+      # This is needed for Headplane to find it and signal it
+      - "me.tale.headplane.target=headscale"
+    volumes:
+      - './headscale-data:/var/lib/headscale'
+      - './headscale-config:/etc/headscale'
+    networks:
+      - traefik
+
+  headplane:
+    image: ghcr.io/tale/headplane:0.6.0
+    container_name: headplane
+    restart: unless-stopped
+    labels:
+      # Traefik configuration for headplane
+      - "traefik.enable=true"
+      - "traefik.http.routers.headplane.rule=Host(`vpn.marioverde.com.br`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.headplane.entrypoints=websecure"
+      - "traefik.http.routers.headplane.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.headplane.service=headplane"
+      - "traefik.http.services.headplane.loadbalancer.server.port=3000"
+    volumes:
+      - './headplane/config.yaml:/etc/headplane/config.yaml'
+      # This should match headscale.config_path in your config.yaml
+      - './headscale-config/config.yaml:/etc/headscale/config.yaml'
+
+      # If using dns.extra_records in Headscale (recommended), this should
+      # match the headscale.dns_records_path in your config.yaml
+      - './headscale-config/dns_records.json:/etc/headscale/dns_records.json'
+
+      # Headplane stores its data in this directory
+      - './headplane-data:/var/lib/headplane'
+
+      # If you are using the Docker integration, mount the Docker socket
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
