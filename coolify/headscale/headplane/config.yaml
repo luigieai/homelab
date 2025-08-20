@@ -29,7 +29,7 @@ headscale:
 
   # Optional, public URL if they differ
   # This affects certain parts of the web UI
-  # public_url: "https://headscale.example.com"
+  public_url: "https://vpn.marioverde.com.br"
 
   # Path to the Headscale configuration file
   # This is optional, but HIGHLY recommended for the best experience
