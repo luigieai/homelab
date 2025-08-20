@@ -10,7 +10,7 @@
 #
 # https://myheadscale.example.com:443
 #
-server_url: http://vpn.marioverde.com.br:443
+server_url: https://vpn.marioverde.com.br:443
 
 # Address to listen to / bind to on the server
 #
