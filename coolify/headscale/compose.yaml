@@ -8,19 +8,12 @@ services:
       # Traefik configuration
       - "traefik.enable=true"
       
-      # Main headscale service router
-      - "traefik.http.routers.headscale.rule=Host(`vpn.marioverde.com.br`)"
+      # Main headscale service router (excludes /admin path for headplane)
+      - "traefik.http.routers.headscale.rule=Host(`vpn.marioverde.com.br`) && !PathPrefix(`/admin`)"
       - "traefik.http.routers.headscale.entrypoints=websecure"
       - "traefik.http.routers.headscale.tls.certresolver=letsencrypt"
       - "traefik.http.routers.headscale.service=headscale"
       - "traefik.http.routers.headscale.middlewares=headscale-cors"
-      
-      # Rewrite router for root path
-      - "traefik.http.routers.headscale-rewrite.rule=Host(`vpn.marioverde.com.br`) && Path(`/`)"
-      - "traefik.http.routers.headscale-rewrite.entrypoints=websecure"
-      - "traefik.http.routers.headscale-rewrite.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.headscale-rewrite.service=headscale"
-      - "traefik.http.routers.headscale-rewrite.middlewares=headscale-rewrite"
       
       # Service configuration
       - "traefik.http.services.headscale.loadbalancer.server.port=8080"
@@ -31,9 +24,6 @@ services:
       - "traefik.http.middlewares.headscale-cors.headers.accesscontrolalloworiginlist=https://vpn.app.marioverde.com.br"
       - "traefik.http.middlewares.headscale-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.headscale-cors.headers.addvaryheader=true"
-      
-      # Rewrite middleware
-      - "traefik.http.middlewares.headscale-rewrite.addprefix.prefix=/admin"
       
       # This is needed for Headplane to find it and signal it
       - "me.tale.headplane.target=headscale"
