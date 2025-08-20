@@ -28,7 +28,7 @@ services:
       # CORS middleware
       - "traefik.http.middlewares.headscale-cors.headers.accesscontrolallowheaders=*"
       - "traefik.http.middlewares.headscale-cors.headers.accesscontrolallowmethods=GET,POST,PUT"
-      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolalloworiginlist=https://headscale.app.marioverde.com.br"
+      - "traefik.http.middlewares.headscale-cors.headers.accesscontrolalloworiginlist=https://vpn.app.marioverde.com.br"
       - "traefik.http.middlewares.headscale-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.headscale-cors.headers.addvaryheader=true"
       
