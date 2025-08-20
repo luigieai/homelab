@@ -20,7 +20,7 @@ headscale:
   # (THIS IS NOT the gRPC endpoint, but the HTTP endpoint)
   #
   # IMPORTANT: If you are using TLS this MUST be set to `https://`
-  url: "http://headscale:5000"
+  url: "http://headscale:8080"
 
   # If you use the TLS configuration in Headscale, and you are not using
   # Let's Encrypt for your certificate, pass in the path to the certificate.
