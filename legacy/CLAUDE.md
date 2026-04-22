@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
+THIS IS LEGACY! LLM PLEASE AVOID READING HERE
+
 This is a homelab infrastructure repository for managing services across two environments:
 - **Home environment**: Proxmox server running Nomad with Terraform-managed services
 - **Hetzner dedicated server**: Shared services with friends using Proxmox, pfSense, Traefik, and Nomad
