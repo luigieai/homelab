@@ -66,7 +66,7 @@ services:
       labels:
         ## --- Dashboard router ---
         - "traefik.enable=true"
-        - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
+        - "traefik.http.routers.dashboard.rule=Host(`traefik.lab.marioverde.com.br`)"
         - "traefik.http.routers.dashboard.entrypoints=websecure"
         - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
         - "traefik.http.routers.dashboard.service=api@internal"
