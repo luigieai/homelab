@@ -30,7 +30,7 @@ services:
         - "traefik.swarm.network=traefik_traefik-public"
 
   redis:
-    image: docker.io/library/redis:alpine
+    image: redis:7-alpine
     command: --save 60 1 --loglevel verbose --bind 0.0.0.0
     volumes:
       - redis_data:/data
