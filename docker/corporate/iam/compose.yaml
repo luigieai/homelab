@@ -51,7 +51,7 @@ services:
         max_attempts: 5
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:2025.6.1
+    image: ghcr.io/goauthentik/server:2026.2.2
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -82,7 +82,7 @@ services:
         - "traefik.swarm.network=traefik_traefik-public"
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2025.6.1
+    image: ghcr.io/goauthentik/server:2026.2.2
     command: worker
     user: root
     environment:
