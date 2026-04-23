@@ -31,7 +31,7 @@ services:
 
   redis:
     image: docker.io/library/redis:alpine
-    ccommand: --save 60 1 --loglevel warning --bind 0.0.0.0
+    command: --save 60 1 --loglevel warning --bind 0.0.0.0
     volumes:
       - redis_data:/data
     networks:
