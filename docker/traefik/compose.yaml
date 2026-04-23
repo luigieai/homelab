@@ -72,6 +72,7 @@ services:
         - "traefik.http.routers.dashboard.service=api@internal"
         ## Dummy service required by Swarm for the dashboard
         - "traefik.http.services.dashboard-dummy.loadbalancer.server.port=8080"
+        - "traefik.docker.network=traefik_traefik-public"
 
 networks:
   traefik-public:
