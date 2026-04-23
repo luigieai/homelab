@@ -1,0 +1,123 @@
+services:
+
+  lldap:
+    image: lldap/lldap:stable
+    environment:
+      LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET}
+      LLDAP_LDAP_USER_PASS: ${LLDAP_LDAP_USER_PASS}
+      LLDAP_DATABASE_URL: ${LLDAP_DATABASE_URL}
+      LLDAP_LDAP_BASE_DN: dc=marioverde,dc=com
+      UID: "1000"
+      GID: "1000"
+      TZ: America/Sao_Paulo
+    volumes:
+      - lldap_data:/data
+    networks:
+      - iam_internal
+      - traefik-public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.lldap.rule=Host(`lldap.lab.marioverde.com.br`)"
+        - "traefik.http.routers.lldap.entrypoints=websecure"
+        - "traefik.http.routers.lldap.tls.certresolver=cloudflare"
+        - "traefik.http.services.lldap.loadbalancer.server.port=17170"
+        - "traefik.swarm.network=traefik_traefik-public"
+
+  redis:
+    image: docker.io/library/redis:alpine
+    command: --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - iam_internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2025.6.1
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: ${AUTHENTIK_POSTGRESQL__HOST}
+      AUTHENTIK_POSTGRESQL__PORT: ${AUTHENTIK_POSTGRESQL__PORT:-5432}
+      AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_POSTGRESQL__USER}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL__PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: ${AUTHENTIK_POSTGRESQL__NAME}
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    networks:
+      - iam_internal
+      - traefik-public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.authentik.rule=Host(`auth.lab.marioverde.com.br`)"
+        - "traefik.http.routers.authentik.entrypoints=websecure"
+        - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
+        - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+        - "traefik.swarm.network=traefik_traefik-public"
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2025.6.1
+    command: worker
+    user: root
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: ${AUTHENTIK_POSTGRESQL__HOST}
+      AUTHENTIK_POSTGRESQL__PORT: ${AUTHENTIK_POSTGRESQL__PORT:-5432}
+      AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_POSTGRESQL__USER}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL__PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: ${AUTHENTIK_POSTGRESQL__NAME}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - authentik_media:/media
+      - authentik_certs:/certs
+      - authentik_templates:/templates
+    networks:
+      - iam_internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+      placement:
+        constraints:
+          - node.role == manager
+
+networks:
+  iam_internal:
+    driver: overlay
+  traefik-public:
+    external: true
+
+volumes:
+  lldap_data:
+  redis_data:
+  authentik_media:
+  authentik_certs:
+  authentik_templates:
