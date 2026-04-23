@@ -30,14 +30,14 @@ services:
         - "traefik.swarm.network=traefik_traefik-public"
 
   redis:
-    image: redis:7-alpine
-    command: redis-server --save 60 1 --loglevel verbose --bind 0.0.0.0 --protected-mode no
+    image: valkey/valkey:8-alpine
+    command: --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
     networks:
       - iam_internal
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
       start_period: 20s
       interval: 30s
       retries: 5
