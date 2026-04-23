@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: --save 60 1 --loglevel verbose --bind 0.0.0.0
+    command: redis-server --save 60 1 --loglevel verbose --bind 0.0.0.0 --protected-mode no
     volumes:
       - redis_data:/data
     networks:
