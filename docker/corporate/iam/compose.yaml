@@ -44,6 +44,7 @@ services:
       timeout: 3s
     deploy:
       replicas: 1
+      endpoint_mode: dnsrr
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -114,6 +115,7 @@ networks:
     driver: overlay
   traefik-public:
     external: true
+    name: traefik_traefik-public
 
 volumes:
   lldap_data:
