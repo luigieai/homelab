@@ -36,7 +36,8 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 
 - **Traefik v3.6** — ingress for the Docker Swarm, dashboard at `traefik.lab.marioverde.com.br`
 - **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access.
-
+- **lldap** - User management for corporate dept. `lldap.lab.marioverde.com.br`
+- **authentik** - User oauth management for corporate dept. `auth.lab.marioverde.com.br`
 ## Domain Pattern
 
 - `APPNAME.app.marioverde.com.br` = Apps that will be deployed in WAN
