@@ -1,52 +1,43 @@
 # Homelab repo
 
-This is the repository for all my automations and notes for my homelab. Right now my homelab is running on two machines, one at my home and one at a hetzner dedicated server.
+This is the repository for all my automations and notes for my homelab. My homelab runs on a single home server.
 
-# What I host home?
-Here is everything I currently host, infrastructure part it's the machines and services part all my apps.
-## At home
-My home machine is hosting proxmox community edition, and it's the base for everything, where I have a few virtual machines. I give acess to my home machine using [my script for DDNS](https://github.com/luigieai/ddns-cloudflare-shell), as my domain is hosted in cloudflare.
+## Infrastructure
 
-## Terraform
-I'm using nomad + terraform for automatic provisioning of my services. Everything I change or create I commit to the repo, and terraform will create the resources.
+The base is **Proxmox Community Edition** with the following network setup:
+- **Proxmox SDN** — internal network for inter-VM/container communication (10.0.0.0/24)
+- **Proxmox default bridge** — LAN access from home network, later WAN access from VPN routing (192.168.15.0/24)
 
-## Services
-I have a nomad server running on my home machine, it's a single node server, and I'm using it for running containers, and for running some services that I need.
-Right now I'm hosting:
+## Architecture
 
-### DNS Server
-I'm using AdGuard for DNS hosting, it's a good substitute for pi-hole and while it's not a full dns server at his heart, the DNS Rewrite function enable me using local dns addresses properly, and I don't need anything more for now.
+The homelab is organized into layers, simulating companies departments:
 
-### VPN
-Right now I'm using [netbird](https://netbird.io/) for VPN, it's a good because uses wireguard, and it's easy to setup and use. But with my dedicated server In hetzner, probably I will switch to headscale later.
+### Platform
+Base infrastructure — the most critical and sensitive pieces. Everything else depends on it.
 
-### Caddy
-Caddy is my reverse proxy, with terraform I can easily deploy new endpoints with TLS for my local network.
+- **Proxmox** — host virtualization
+- **Docker Swarm** — container orchestration
+- **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge). hosted on docker swarm.
 
-### Icecast
-I'm using icecast for streaming my live DJs sets for my friends.
+### Corporate
+Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki/docs. All other services should integrate with these.
 
-### Kavita
-Kavita is my self-hosted ebooks server. Right I'm importing them manually and I will probably see If I will migrate this service to my dedicated server in hetzner.
+- **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access
 
-### Keycloak
-Keycloak is my identity provider, I'm using it for my local projects as I usually use openID and oauth2 for authentication. Right now there's no service in the homelab using it but it's very useful in my development enviroment.
+### Departments
+Apps organized by area/objective, each isolated by domain and purpose (**Active development**): 
+- Development 
+- Music/DJ
+- Gaming servers
+- Household
+- stil deciding...
 
-### PostgreSQL
-I'm using a single node postgres server for the lab services and my personal projects. The job also has a pgAdmin instance running.
+## Currently Deployed
 
-### Redis
-Right now I'm using redis for nothing.
+- **Traefik v3.6** — ingress for the Docker Swarm, dashboard at `traefik.lab.marioverde.com.br`
+- **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access.
 
-### TwitchMiner
-My instnace of [Twitch-Channel-Points-Miner-v2](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2)
+## Domain Pattern
 
-# What I host in hetzner?
-At hetzner I "share" some personal services with my friends projetcs. But the basic infrascructure is running proxmox with NAT for an instance of pfSense for router. A traefik in a LXC for reverse proxy. And a nomad server with some jobs for running containers.
-
-## Setup terraform:
-
-```
-read -s PGPASSWORD
-export PGPASSWORD
-```
+- `APPNAME.app.marioverde.com.br` = Apps that will be deployed in WAN
+- `APPNAME.lab.marioverde.com.br` - Apps deployerd both in LAN and Internal network. 
