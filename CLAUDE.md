@@ -39,7 +39,10 @@ services:
 networks:
   traefik-public:
     external: true
+    name: traefik_traefik-public
 ```
+
+> **Note**: The `name: traefik_traefik-public` is required. Docker Swarm prefixes network names with the stack name, so the network declared as `traefik-public` in the `traefik` stack becomes `traefik_traefik-public`. Without the explicit `name`, other stacks referencing it as `external: true` will fail with "network not found".
 
 **Domain pattern**: `APPNAME.app.marioverde.com.br` or `APPNAME.lab.marioverde.com.br`. They can have both domains. *.app* is for wan apps. *.lab* is for internal apps. An app can be reachable in both domains.
 
