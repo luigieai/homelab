@@ -16,7 +16,7 @@ The homelab is organized into layers, simulating companies departments:
 Base infrastructure — the most critical and sensitive pieces. Everything else depends on it.
 
 - **Proxmox** — host virtualization
-- **Docker Swarm** — container orchestration
+- **Docker Compose** — container orchestration
 - **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge). hosted on docker swarm.
 
 ### Corporate
@@ -34,7 +34,7 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 
 ## Currently Deployed
 
-- **Traefik v3.6** — ingress for the Docker Swarm, dashboard at `traefik.lab.marioverde.com.br`
+- **Traefik v3.6** — ingress for Docker Compose stacks, dashboard at `traefik.lab.marioverde.com.br`
 - **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access.
 - **lldap** - User management for corporate dept. `lldap.lab.marioverde.com.br`
 - **authentik** - User oauth management for corporate dept. `auth.lab.marioverde.com.br`

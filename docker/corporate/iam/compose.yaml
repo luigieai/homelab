@@ -2,6 +2,7 @@ services:
 
   lldap:
     image: lldap/lldap:stable
+    restart: unless-stopped
     environment:
       LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET}
       LLDAP_LDAP_USER_PASS: ${LLDAP_LDAP_USER_PASS}
@@ -15,22 +16,16 @@ services:
     networks:
       - iam_internal
       - traefik-public
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.lldap.rule=Host(`lldap.lab.marioverde.com.br`)"
-        - "traefik.http.routers.lldap.entrypoints=websecure"
-        - "traefik.http.routers.lldap.tls.certresolver=cloudflare"
-        - "traefik.http.services.lldap.loadbalancer.server.port=17170"
-        - "traefik.swarm.network=traefik_traefik-public"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lldap.rule=Host(`lldap.lab.marioverde.com.br`)"
+      - "traefik.http.routers.lldap.entrypoints=websecure"
+      - "traefik.http.routers.lldap.tls.certresolver=cloudflare"
+      - "traefik.http.services.lldap.loadbalancer.server.port=17170"
 
   redis:
     image: valkey/valkey:8-alpine
+    restart: unless-stopped
     command: --save 60 1 --loglevel warning
     volumes:
       - redis_data:/data
@@ -42,16 +37,10 @@ services:
       interval: 30s
       retries: 5
       timeout: 3s
-    deploy:
-      replicas: 1
-      endpoint_mode: dnsrr
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
 
   authentik-server:
     image: ghcr.io/goauthentik/server:2026.2.2
+    restart: unless-stopped
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -67,22 +56,16 @@ services:
     networks:
       - iam_internal
       - traefik-public
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 10
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.authentik.rule=Host(`auth.lab.marioverde.com.br`)"
-        - "traefik.http.routers.authentik.entrypoints=websecure"
-        - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
-        - "traefik.http.services.authentik.loadbalancer.server.port=9000"
-        - "traefik.swarm.network=traefik_traefik-public"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`auth.lab.marioverde.com.br`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:2026.2.2
+    restart: unless-stopped
     command: worker
     user: root
     environment:
@@ -100,22 +83,13 @@ services:
       - authentik_templates:/templates
     networks:
       - iam_internal
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 10
-      placement:
-        constraints:
-          - node.role == manager
 
 networks:
   iam_internal:
-    driver: overlay
+    driver: bridge
   traefik-public:
     external: true
-    name: traefik_traefik-public
+    name: traefik-public
 
 volumes:
   lldap_data:

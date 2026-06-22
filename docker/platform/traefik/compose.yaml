@@ -1,21 +1,21 @@
 ###################################
-# 🔀 TRAEFIK - SWARM INGRESS     #
+# TRAEFIK - INGRESS               #
 ###################################
-## Deploys Traefik v3.6 as a global swarm ingress
+## Deploys Traefik v3.6 as the ingress controller
 ## with Let's Encrypt via Cloudflare DNS challenge
 
 services:
   traefik:
     image: traefik:v3.6
+    restart: unless-stopped
     command:
       ## --- API / Dashboard ---
       - --api.dashboard=true
       - --api.insecure=false
 
       ## --- Providers ---
-      - --providers.swarm=true                          # Docker Swarm mode
-      - --providers.swarm.exposedbydefault=false        # require explicit opt-in per service
-      - --providers.swarm.network=traefik-public        # default overlay network
+      - --providers.docker=true                      # Docker Compose mode
+      - --providers.docker.exposedbydefault=false    # require explicit opt-in per service
 
       ## --- Entrypoints ---
       - --entrypoints.web.address=:80
@@ -37,47 +37,24 @@ services:
       - --accesslog=true
 
     environment:
-      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}   # Cloudflare API token
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
+      ACME_EMAIL: ${ACME_EMAIL}
 
-    ports:
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: host                             # bypass swarm LB, bind directly to host NIC
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: host
+    network_mode: host                             # bind directly to host NIC on ports 80/443
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
 
-    networks:
-      - traefik-public
-
-    deploy:
-      mode: global                             # one Traefik per swarm node
-      placement:
-        constraints:
-          - node.role == manager               # only on manager nodes
-      restart_policy:
-        condition: on-failure
-      labels:
-        ## --- Dashboard router ---
-        - "traefik.enable=true"
-        - "traefik.http.routers.dashboard.rule=Host(`traefik.lab.marioverde.com.br`)"
-        - "traefik.http.routers.dashboard.entrypoints=websecure"
-        - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
-        - "traefik.http.routers.dashboard.service=api@internal"
-        ## Dummy service required by Swarm for the dashboard
-        - "traefik.http.services.dashboard-dummy.loadbalancer.server.port=8080"
-        - "traefik.swarm.network=traefik_traefik-public"
-
-networks:
-  traefik-public:
-    driver: overlay
-    attachable: true                           # allows non-swarm containers to attach if needed
+    labels:
+      ## --- Dashboard router ---
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.lab.marioverde.com.br`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      ## Dummy port required when using api@internal with Docker provider
+      - "traefik.http.services.dashboard-dummy.loadbalancer.server.port=8080"
 
 volumes:
   letsencrypt:
