@@ -39,12 +39,7 @@ services:
       timeout: 3s
 
   authentik-server:
-<<<<<<< HEAD
-    image: ghcr.io/goauthentik/server:2026.2.2
-    restart: unless-stopped
-=======
     image: ghcr.io/goauthentik/server:2026.2.3
->>>>>>> 768fe219815496cf6c99044fbdbc1b8927548669
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -68,12 +63,7 @@ services:
       - "traefik.http.services.authentik.loadbalancer.server.port=9000"
 
   authentik-worker:
-<<<<<<< HEAD
-    image: ghcr.io/goauthentik/server:2026.2.2
-    restart: unless-stopped
-=======
     image: ghcr.io/goauthentik/server:2026.2.3
->>>>>>> 768fe219815496cf6c99044fbdbc1b8927548669
     command: worker
     user: root
     environment:
