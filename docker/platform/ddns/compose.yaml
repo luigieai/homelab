@@ -1,8 +1,3 @@
-###################################
-# 🌐 CLOUDFLARE DDNS              #
-###################################
-## Updates Cloudflare DNS records with the current public IP
-
 services:
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:1
