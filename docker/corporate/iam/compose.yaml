@@ -14,8 +14,7 @@ services:
     volumes:
       - lldap_data:/data
     networks:
-      - iam_internal
-      - traefik-public
+      - corporate_network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.lldap.rule=Host(`lldap.lab.marioverde.com.br`)"
@@ -30,7 +29,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - iam_internal
+      - corporate_network
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
       start_period: 20s
@@ -40,6 +39,7 @@ services:
 
   authentik-server:
     image: ghcr.io/goauthentik/server:2026.2.3
+    restart: unless-stopped
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -53,8 +53,7 @@ services:
       - authentik_media:/media
       - authentik_templates:/templates
     networks:
-      - iam_internal
-      - traefik-public
+      - corporate_network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.authentik.rule=Host(`auth.lab.marioverde.com.br`)"
@@ -64,6 +63,7 @@ services:
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:2026.2.3
+    restart: unless-stopped
     command: worker
     user: root
     environment:
@@ -80,14 +80,11 @@ services:
       - authentik_certs:/certs
       - authentik_templates:/templates
     networks:
-      - iam_internal
+      - corporate_network
 
 networks:
-  iam_internal:
+  corporate_network:
     driver: bridge
-  traefik-public:
-    external: true
-    name: traefik-public
 
 volumes:
   lldap_data:

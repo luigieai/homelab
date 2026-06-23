@@ -17,19 +17,17 @@ Container orchestration runs on **Docker Compose** with **Traefik v3.6** as the 
 - **Corporate** — governance apps (IAM/OAuth, DNS, automation, wiki)
 - **Departments** — app areas isolated by domain/objective (Development, Music/DJ, Gaming, Household, etc.)
 
-## One-Time Host Setup
+## Traefik Networking Model
 
-Before deploying any stack, create the shared Traefik network on the host:
+Traefik runs with `network_mode: host`, meaning it shares the host's network stack and is **not** inside any Docker network. It discovers containers via the Docker socket and reaches them through the host's routing table, which has routes to every Docker bridge network automatically.
 
-```bash
-docker network create traefik-public
-```
+**Implication**: services do **not** need a shared network with Traefik. Each stack defines its own internal bridge network (e.g. `corporate_network`). Services only need to be on that network and have Traefik labels — Traefik will reach them directly via the host.
 
-This bridge network is shared across all stacks. Run this once. If the host reboots and the network is lost, recreate it before bringing stacks back up.
+No pre-created host network is needed. No `traefik-public` external network. No shared network across stacks.
 
 ## Adding a New Service
 
-All services that need Traefik routing must join the `traefik-public` bridge network and declare Traefik labels at the service top level (not under `deploy:`). Use `cloudflare` as the cert resolver.
+Declare Traefik labels at the service top level (not under `deploy:`). Use `cloudflare` as the cert resolver. The service only needs to be on its stack's own internal network.
 
 ```yaml
 services:
@@ -37,7 +35,7 @@ services:
     image: myapp:latest
     restart: unless-stopped
     networks:
-      - traefik-public
+      - mystack_network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.myapp.rule=Host(`myapp.app.marioverde.com.br`)"
@@ -46,12 +44,11 @@ services:
       - "traefik.http.services.myapp.loadbalancer.server.port=80"
 
 networks:
-  traefik-public:
-    external: true
-    name: traefik-public
+  mystack_network:
+    driver: bridge
 ```
 
-> **Note**: The `name: traefik-public` must match the pre-created host network exactly. Without the explicit `name`, Docker will create a per-stack network and Traefik will not find the containers.
+> **Note**: No shared external network with Traefik is required. Traefik uses `network_mode: host` and reaches all Docker bridge networks directly through the host's routing table.
 
 **Domain pattern**: `APPNAME.app.marioverde.com.br` or `APPNAME.lab.marioverde.com.br`. They can have both domains. *.app* is for wan apps. *.lab* is for internal apps. An app can be reachable in both domains.
 
@@ -60,9 +57,6 @@ networks:
 ## Deploy Commands
 
 ```bash
-# One-time host setup (recreate after host reboot if the network is gone)
-docker network create traefik-public
-
 # Deploy or update a stack (run from the stack's directory)
 docker compose up -d
 
