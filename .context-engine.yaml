@@ -1,0 +1,2 @@
+pricing:
+  model: sonnet    # opus (default) | sonnet | haiku
