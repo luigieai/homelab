@@ -17,26 +17,34 @@ Base infrastructure — the most critical and sensitive pieces. Everything else 
 
 - **Proxmox** — host virtualization
 - **Docker Compose** — container orchestration
-- **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge). hosted on docker swarm.
+- **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge), running with `network_mode: host`
+- **Cloudflare DDNS** — keeps DNS records in sync with the home WAN IP
 
 ### Corporate
 Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki/docs. All other services should integrate with these.
 
 - **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access
+- **authentik** - IAM/OAuth provider (replaces the previously used lldap)
 
 ### Departments
-Apps organized by area/objective, each isolated by domain and purpose (**Active development**): 
-- Development 
+Apps organized by area/objective, each isolated by domain and purpose (**Active development**):
+- Personal
+- Development
 - Music/DJ
 - Gaming servers
 - Household
-- stil deciding...
+- still deciding...
 
 ## Currently Deployed
 
-- **Traefik v3.6** — ingress for Docker Compose stacks, dashboard at `traefik.lab.marioverde.com.br`
-- **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access.
-- **authentik** - User/IAM management for corporate dept. `auth.lab.marioverde.com.br`
+| Service | Layer | Domain |
+|---|---|---|
+| Traefik v3.6 | Platform | `traefik.lab.marioverde.com.br` |
+| Cloudflare DDNS | Platform | — |
+| CoreDNS (LXC) | Corporate | — |
+| authentik | Corporate | `auth.lab.marioverde.com.br` |
+| Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
+
 ## Domain Pattern
 
 - `APPNAME.app.marioverde.com.br` = Apps that will be deployed in WAN
