@@ -35,6 +35,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Environment files with secrets
+.env
+
 # CCE (code-context-engine)
 # CCE local cache (per-machine, not for version control)
 .cce/
