@@ -50,10 +50,6 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    logging:
-      options:
-        max-size: "1m"
-        max-file: "5"
 
   updater:
     container_name: azuracast_updater
@@ -61,10 +57,6 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    logging:
-      options:
-        max-size: "1m"
-        max-file: "5"
 
 networks:
   music_network:
