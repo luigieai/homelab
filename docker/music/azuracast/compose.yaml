@@ -1,0 +1,85 @@
+#
+# AzuraCast Docker Compose Configuration
+#
+# Adapted from the official docker-compose.sample.yml for GitOps deployment via Komodo:
+# https://raw.githubusercontent.com/AzuraCast/AzuraCast/stable/docker-compose.sample.yml
+#
+# Differences from upstream:
+# - HTTP/HTTPS are fronted by Traefik (labels below) instead of host-published ports.
+# - Only the streaming ports for a single station are published (8000, 8005, 8006).
+#   Add more '<port>:<port>' entries here if you add more stations.
+#
+# Setup: copy .env.example to .env and azuracast.env.example to azuracast.env,
+# then fill in MYSQL_PASSWORD in azuracast.env. Both real files are gitignored.
+#
+
+services:
+  web:
+    container_name: azuracast
+    image: "ghcr.io/azuracast/azuracast:${AZURACAST_VERSION:-latest}"
+    labels:
+      - "com.centurylinklabs.watchtower.scope=azuracast"
+      - "traefik.enable=true"
+      - "traefik.http.routers.azuracast.rule=Host(`radio.app.marioverde.com.br`)"
+      - "traefik.http.routers.azuracast.entrypoints=websecure"
+      - "traefik.http.routers.azuracast.tls.certresolver=cloudflare"
+      - "traefik.http.services.azuracast.loadbalancer.server.port=80"
+    # Station streaming ports can't be routed through Traefik (raw TCP/Icecast, not HTTP).
+    # These map 1:1 to the first station's auto-assigned ports.
+    ports:
+      - '${AZURACAST_SFTP_PORT:-2022}:${AZURACAST_SFTP_PORT:-2022}'
+      - '8000:8000'
+      - '8005:8005'
+      - '8006:8006'
+    env_file:
+      - azuracast.env
+      - .env
+    volumes:
+      - station_data:/var/azuracast/stations
+      - backups:/var/azuracast/backups
+      - db_data:/var/lib/mysql
+      - www_uploads:/var/azuracast/storage/uploads
+      - shoutcast2_install:/var/azuracast/storage/shoutcast2
+      - stereo_tool_install:/var/azuracast/storage/stereo_tool
+      - rsas_install:/var/azuracast/storage/rsas
+      - geolite_install:/var/azuracast/storage/geoip
+      - sftpgo_data:/var/azuracast/storage/sftpgo
+      - acme:/var/azuracast/storage/acme
+    restart: unless-stopped
+    networks:
+      - music_network
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "5"
+
+  updater:
+    container_name: azuracast_updater
+    image: ghcr.io/azuracast/updater:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "5"
+
+networks:
+  music_network:
+    driver: bridge
+
+volumes:
+  db_data: { }
+  acme: { }
+  shoutcast2_install: { }
+  stereo_tool_install: { }
+  rsas_install: { }
+  geolite_install: { }
+  sftpgo_data: { }
+  station_data: { }
+  www_uploads: { }
+  backups: { }
