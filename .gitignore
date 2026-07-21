@@ -37,7 +37,6 @@ terraform.rc
 
 # Environment files with secrets
 .env
-docker/music/azuracast/azuracast.env
 
 # CCE (code-context-engine)
 # CCE local cache (per-machine, not for version control)

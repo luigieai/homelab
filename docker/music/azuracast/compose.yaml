@@ -9,8 +9,7 @@
 # - Only the streaming ports for a single station are published (8000, 8005, 8006).
 #   Add more '<port>:<port>' entries here if you add more stations.
 #
-# Setup: copy .env.example to .env and azuracast.env.example to azuracast.env,
-# then fill in MYSQL_PASSWORD in azuracast.env. Both real files are gitignored.
+# Setup: copy .env.example to .env and fill in MYSQL_PASSWORD. .env is gitignored.
 #
 
 services:
@@ -32,7 +31,6 @@ services:
       - '8005:8005'
       - '8006:8006'
     env_file:
-      - azuracast.env
       - .env
     volumes:
       - station_data:/var/azuracast/stations
