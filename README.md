@@ -19,6 +19,7 @@ Base infrastructure — the most critical and sensitive pieces. Everything else 
 - **Docker Compose** — container orchestration
 - **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge), running with `network_mode: host`
 - **Cloudflare DDNS** — keeps DNS records in sync with the home WAN IP
+- **Container Registry** — private Docker image registry (Distribution v3) with a browsing UI, no auth yet (internal `.lab` only)
 
 ### Corporate
 Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki/docs. All other services should integrate with these.
@@ -41,6 +42,8 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 |---|---|---|
 | Traefik v3.6 | Platform | `traefik.lab.marioverde.com.br` |
 | Cloudflare DDNS | Platform | — |
+| Container Registry | Platform | `registry.lab.marioverde.com.br` |
+| Registry UI | Platform | `registry-ui.lab.marioverde.com.br` |
 | CoreDNS (LXC) | Corporate | — |
 | authentik | Corporate | `auth.lab.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
