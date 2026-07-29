@@ -16,6 +16,12 @@ services:
       - ${DATA_PATH:-./data}:/app/data
     networks:
       - steamauth_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.steamauth-api.rule=Host(`steamauth-api.lab.marioverde.com.br`)"
+      - "traefik.http.routers.steamauth-api.entrypoints=websecure"
+      - "traefik.http.routers.steamauth-api.tls.certresolver=cloudflare"
+      - "traefik.http.services.steamauth-api.loadbalancer.server.port=3000"
 
   frontend:
     image: registry.lab.marioverde.com.br/steamauth-frontend:latest
