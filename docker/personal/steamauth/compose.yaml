@@ -34,7 +34,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
-      NUXT_PUBLIC_API_BASE_URL: http://backend:3000
+      NUXT_PUBLIC_API_BASE_URL: https://steamauth-api.lab.marioverde.com.br
     networks:
       - steamauth_network
     labels:
