@@ -1,0 +1,74 @@
+services:
+  romm:
+    image: rommapp/romm:latest
+    container_name: romm
+    restart: unless-stopped
+    environment:
+      - DB_HOST=romm-db
+      - DB_NAME=romm
+      - DB_USER=romm-user
+      - DB_PASSWD=${MARIADB_PASSWORD}
+      - ROMM_AUTH_SECRET_KEY=${ROMM_AUTH_SECRET_KEY}
+      - ROMM_BASE_URL=https://romm.lab.marioverde.com.br
+      # OIDC via Authentik
+      - OIDC_ENABLED=true
+      - OIDC_PROVIDER=authentik
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      - OIDC_REDIRECT_URI=https://romm.lab.marioverde.com.br/api/oauth/openid
+      - OIDC_SERVER_APPLICATION_URL=https://auth.lab.marioverde.com.br/application/o/romm
+      # Optional metadata providers (blank = disabled)
+      - SCREENSCRAPER_USER=${SCREENSCRAPER_USER}
+      - SCREENSCRAPER_PASSWORD=${SCREENSCRAPER_PASSWORD}
+      - RETROACHIEVEMENTS_API_KEY=${RETROACHIEVEMENTS_API_KEY}
+      - STEAMGRIDDB_API_KEY=${STEAMGRIDDB_API_KEY}
+      - HASHEOUS_API_ENABLED=true
+    volumes:
+      - romm_library:/romm/library
+      - romm_assets:/romm/assets
+      - romm_config:/romm/config
+      - romm_resources:/romm/resources
+    networks:
+      - gaming_network
+    depends_on:
+      romm-db:
+        condition: service_healthy
+        restart: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.romm.rule=Host(`romm.lab.marioverde.com.br`)"
+      - "traefik.http.routers.romm.entrypoints=websecure"
+      - "traefik.http.routers.romm.tls.certresolver=cloudflare"
+      - "traefik.http.services.romm.loadbalancer.server.port=8080"
+
+  romm-db:
+    image: mariadb:latest
+    container_name: romm-db
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MARIADB_DATABASE=romm
+      - MARIADB_USER=romm-user
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD}
+    volumes:
+      - romm_db_data:/var/lib/mysql
+    networks:
+      - gaming_network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      start_interval: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  gaming_network:
+    driver: bridge
+
+volumes:
+  romm_library:
+  romm_assets:
+  romm_config:
+  romm_resources:
+  romm_db_data:
