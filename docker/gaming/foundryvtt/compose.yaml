@@ -1,0 +1,32 @@
+services:
+  foundryvtt:
+    image: ghcr.io/felddy/foundryvtt:release
+    container_name: foundryvtt
+    hostname: foundryvtt
+    restart: unless-stopped
+    environment:
+      - FOUNDRY_USERNAME=${FOUNDRY_USERNAME}
+      - FOUNDRY_PASSWORD=${FOUNDRY_PASSWORD}
+      - FOUNDRY_ADMIN_KEY=${FOUNDRY_ADMIN_KEY}
+      - TZ=America/Sao_Paulo
+      - FOUNDRY_TELEMETRY=false
+    volumes:
+      - foundry_data:/data
+    networks:
+      - gaming_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.foundryvtt-lab.rule=Host(`foundryvtt.lab.marioverde.com.br`)"
+      - "traefik.http.routers.foundryvtt-lab.entrypoints=websecure"
+      - "traefik.http.routers.foundryvtt-lab.tls.certresolver=cloudflare"
+      - "traefik.http.routers.foundryvtt-app.rule=Host(`foundryvtt.app.marioverde.com.br`)"
+      - "traefik.http.routers.foundryvtt-app.entrypoints=websecure"
+      - "traefik.http.routers.foundryvtt-app.tls.certresolver=cloudflare"
+      - "traefik.http.services.foundryvtt.loadbalancer.server.port=30000"
+
+networks:
+  gaming_network:
+    driver: bridge
+
+volumes:
+  foundry_data:
