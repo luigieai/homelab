@@ -1,0 +1,23 @@
+services:
+  teamspeak:
+    image: teamspeaksystems/teamspeak6-server:latest
+    container_name: teamspeak
+    hostname: teamspeak
+    restart: unless-stopped
+    environment:
+      - TSSERVER_LICENSE_ACCEPTED=accept
+      - TZ=America/Sao_Paulo
+    ports:
+      - "9987:9987/udp"   # Voice
+      - "30033:30033/tcp" # File transfer
+    volumes:
+      - teamspeak_data:/var/tsserver
+    networks:
+      - gaming_network
+
+networks:
+  gaming_network:
+    driver: bridge
+
+volumes:
+  teamspeak_data:
