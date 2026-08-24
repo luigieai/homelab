@@ -1,0 +1,39 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:11
+    restart: unless-stopped
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: ${FORGEJO_POSTGRESQL__HOST}:${FORGEJO_POSTGRESQL__PORT:-5432}
+      FORGEJO__database__NAME: ${FORGEJO_POSTGRESQL__NAME}
+      FORGEJO__database__USER: ${FORGEJO_POSTGRESQL__USER}
+      FORGEJO__database__PASSWD: ${FORGEJO_POSTGRESQL__PASSWORD}
+      FORGEJO__server__DOMAIN: git.lab.marioverde.com.br
+      FORGEJO__server__ROOT_URL: https://git.lab.marioverde.com.br/
+      FORGEJO__server__SSH_DOMAIN: git.lab.marioverde.com.br
+      FORGEJO__server__SSH_PORT: 2222
+      FORGEJO__server__SSH_LISTEN_PORT: 22
+      FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: true
+    volumes:
+      - forgejo_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "2222:22"
+    networks:
+      - platform_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forgejo.rule=Host(`git.lab.marioverde.com.br`)"
+      - "traefik.http.routers.forgejo.entrypoints=websecure"
+      - "traefik.http.routers.forgejo.tls.certresolver=cloudflare"
+      - "traefik.http.services.forgejo.loadbalancer.server.port=3000"
+
+networks:
+  platform_network:
+    driver: bridge
+
+volumes:
+  forgejo_data:
