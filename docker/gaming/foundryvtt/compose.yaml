@@ -22,6 +22,9 @@ services:
       - "traefik.http.routers.foundryvtt-app.rule=Host(`foundryvtt.app.marioverde.com.br`)"
       - "traefik.http.routers.foundryvtt-app.entrypoints=websecure"
       - "traefik.http.routers.foundryvtt-app.tls.certresolver=cloudflare"
+      - "traefik.http.routers.foundryvtt-direct.rule=Host(`vtt.app.marioverde.com.br`)"
+      - "traefik.http.routers.foundryvtt-direct.entrypoints=foundry6666"
+      - "traefik.http.routers.foundryvtt-direct.tls.certresolver=cloudflare"
       - "traefik.http.services.foundryvtt.loadbalancer.server.port=30000"
 
 networks:
