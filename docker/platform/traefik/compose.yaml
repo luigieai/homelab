@@ -21,7 +21,7 @@ services:
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       # Alt-port entrypoint for FoundryVTT (ISP blocks standard ports for now)
-      - --entrypoints.foundry6666.address=:6666
+      - --entrypoints.foundry8666.address=:8666
       # Redirect all HTTP → HTTPS globally
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
