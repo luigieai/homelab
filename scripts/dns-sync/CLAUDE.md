@@ -4,9 +4,8 @@ Custom watcher that keeps Cloudflare DNS records in sync with Docker container
 lifecycle, so a service opts into having its DNS managed purely via a label —
 no manual Cloudflare dashboard edits, and no leftover DNS record after the
 container is removed. It publishes one record per Traefik `Host()` router the
-container declares under `*.app.marioverde.com.br` and/or
-`*.lab.marioverde.com.br` — a container with both a `-lab` and `-app` router
-gets both DNS records created.
+container declares under `*.lab.marioverde.com.br` — a container with
+multiple matching routers gets a record for each.
 
 This directory is **source + build only**. The running deployment lives at
 [docker/platform/dns-sync/](../../docker/platform/dns-sync/), which pulls a
@@ -19,7 +18,7 @@ see "Build and deploy a new version" below.
 
 1. On startup, reconciles: lists all running containers with label
    `homelab.wan-expose=true` and upserts a Cloudflare DNS record for every
-   `.app.`/`.lab.` `Host()` router hostname each one declares.
+   `.lab.` `Host()` router hostname each one declares.
 2. Streams Docker container events. A `start` event upserts the matching
    record immediately. `die`/`stop`/`destroy` events do **not** delete
    anything — deletion only ever happens via reconciliation (see below).
@@ -42,23 +41,20 @@ lifecycle events without a good reason.
 The label alone doesn't say *which* hostname(s) to publish — those are read
 from the container's own Traefik router labels: every
 `traefik.http.routers.<name>.rule=Host(\`...\`)` label that resolves to a
-`*.app.marioverde.com.br` or `*.lab.marioverde.com.br` hostname gets its own
-record. This means a service must have **both** the label and at least one
-matching router:
+`*.lab.marioverde.com.br` hostname gets its own record. This means a service
+must have **both** the label and at least one matching router:
 
 ```yaml
 labels:
-  - "traefik.http.routers.myapp-lab.rule=Host(`myapp.lab.marioverde.com.br`)"
-  - "traefik.http.routers.myapp-app.rule=Host(`myapp.app.marioverde.com.br`)"
+  - "traefik.http.routers.myapp.rule=Host(`myapp.lab.marioverde.com.br`)"
   - "homelab.wan-expose=true"
 ```
 
-— which creates both `myapp.lab.marioverde.com.br` and
-`myapp.app.marioverde.com.br` Cloudflare records, each pointed at the same
+— which creates a `myapp.lab.marioverde.com.br` Cloudflare record pointed at
 `DNS_RECORD_TARGET`. The label without any matching router is a no-op
 (logged as a warning) — `dns-sync` only creates DNS records, it never
-creates Traefik routers, so WAN traffic still needs the `-app` router (and
-LAN clients the `-lab` router, if internal DNS doesn't already resolve it)
+creates Traefik routers, so WAN traffic still needs that router (Traefik
+already serves it to LAN clients too, so no separate router is needed there)
 to actually reach the service.
 
 ## Label contract
@@ -81,10 +77,9 @@ to actually reach the service.
   be adopted/overwritten. Don't reuse a `*.app.`/`*.lab.` hostname that's
   manually managed elsewhere.
 - `.lab.` hostnames are published to Cloudflare too (not just internal DNS)
-  when a labeled container has a `-lab` router — same `DNS_RECORD_TARGET` as
-  `.app.` records. This repo's `.lab` domains aren't only resolved by
-  internal DNS; if that assumption changes, revisit whether `.lab.` records
-  should stay in scope here.
+  for any labeled container's matching router. This repo's `.lab` domains
+  aren't only resolved by internal DNS; if that assumption changes, revisit
+  whether `.lab.` records should stay in scope here.
 
 ## Required environment (see [docker/platform/dns-sync/.env.example](../../docker/platform/dns-sync/.env.example))
 

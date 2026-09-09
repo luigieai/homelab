@@ -39,7 +39,7 @@ services:
       - steamauth_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.steamauth.rule=Host(`steamauth.app.marioverde.com.br`) || Host(`steamauth.lab.marioverde.com.br`)"
+      - "traefik.http.routers.steamauth.rule=Host(`steamauth.lab.marioverde.com.br`)"
       - "traefik.http.routers.steamauth.entrypoints=websecure"
       - "traefik.http.routers.steamauth.tls.certresolver=cloudflare"
       - "traefik.http.services.steamauth.loadbalancer.server.port=3000"

@@ -2,7 +2,7 @@
 # DNS SYNC                        #
 ###################################
 ## Watches Docker containers labeled `homelab.wan-expose=true` and keeps
-## matching Cloudflare DNS records (*.app.marioverde.com.br) in sync with
+## matching Cloudflare DNS records (*.lab.marioverde.com.br) in sync with
 ## their lifecycle. Source: ../../../scripts/dns-sync/
 
 services:

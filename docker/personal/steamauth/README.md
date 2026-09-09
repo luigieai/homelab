@@ -8,7 +8,7 @@ Source repo: SteamAuthWeb (monorepo, `steam-auth-web/` = backend, `frontend/` = 
 
 ## Routes
 
-- Frontend: `https://steamauth.app.marioverde.com.br` and `https://steamauth.lab.marioverde.com.br`
+- Frontend: `https://steamauth.lab.marioverde.com.br`
 - Backend: `https://steamauth-api.lab.marioverde.com.br` — has its own Traefik hostname (not internal-only) because the OIDC login flow redirects the user's **browser** to the backend directly (`/auth/oidc/login`, `/auth/oidc/callback`). The frontend also calls the backend through this same public hostname (`NUXT_PUBLIC_API_BASE_URL`), since that value is shared between server-side (SSR) and client-side (browser) code in Nuxt — it can't point at the internal `http://backend:3000` Docker hostname, or OIDC login links break with an unreachable redirect.
 
 ## Deploy

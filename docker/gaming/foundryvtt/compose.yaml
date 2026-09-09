@@ -16,16 +16,11 @@ services:
       - gaming_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.foundryvtt-lab.rule=Host(`foundryvtt.lab.marioverde.com.br`)"
-      - "traefik.http.routers.foundryvtt-lab.entrypoints=websecure"
-      - "traefik.http.routers.foundryvtt-lab.tls.certresolver=cloudflare"
-      - "traefik.http.routers.foundryvtt-app.rule=Host(`foundryvtt.app.marioverde.com.br`)"
-      - "traefik.http.routers.foundryvtt-app.entrypoints=websecure"
-      - "traefik.http.routers.foundryvtt-app.tls.certresolver=cloudflare"
-      - "traefik.http.routers.foundryvtt-direct.rule=Host(`vtt.app.marioverde.com.br`)"
-      - "traefik.http.routers.foundryvtt-direct.entrypoints=foundry8666"
-      - "traefik.http.routers.foundryvtt-direct.tls.certresolver=cloudflare"
+      - "traefik.http.routers.foundryvtt.rule=Host(`foundryvtt.lab.marioverde.com.br`)"
+      - "traefik.http.routers.foundryvtt.entrypoints=websecure"
+      - "traefik.http.routers.foundryvtt.tls.certresolver=cloudflare"
       - "traefik.http.services.foundryvtt.loadbalancer.server.port=30000"
+      - "homelab.wan-expose=true"
 
 networks:
   gaming_network:

@@ -19,7 +19,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.scope=azuracast"
       - "traefik.enable=true"
-      - "traefik.http.routers.azuracast.rule=Host(`radio.app.marioverde.com.br`)"
+      - "traefik.http.routers.azuracast.rule=Host(`radio.lab.marioverde.com.br`)"
       - "traefik.http.routers.azuracast.entrypoints=websecure"
       - "traefik.http.routers.azuracast.tls.certresolver=cloudflare"
       - "traefik.http.services.azuracast.loadbalancer.server.port=80"

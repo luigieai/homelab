@@ -38,7 +38,7 @@ services:
       - mystack_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.myapp.rule=Host(`myapp.app.marioverde.com.br`)"
+      - "traefik.http.routers.myapp.rule=Host(`myapp.lab.marioverde.com.br`)"
       - "traefik.http.routers.myapp.entrypoints=websecure"
       - "traefik.http.routers.myapp.tls.certresolver=cloudflare"
       - "traefik.http.services.myapp.loadbalancer.server.port=80"
@@ -50,30 +50,24 @@ networks:
 
 > **Note**: No shared external network with Traefik is required. Traefik uses `network_mode: host` and reaches all Docker bridge networks directly through the host's routing table.
 
-**Domain pattern**: `APPNAME.app.marioverde.com.br` or `APPNAME.lab.marioverde.com.br`. They can have both domains. *.app* is for wan apps. *.lab* is for internal apps. An app can be reachable in both domains.
+**Domain pattern**: `APPNAME.lab.marioverde.com.br`. There is no separate `.app` domain — every service uses a single `.lab.` hostname, whether it's LAN-only or also exposed to WAN (see Dynamic WAN DNS below).
 
 **Secrets**: Sensitive env vars go in `.env` (not committed). Always create a `.env.example`. Non-sensitive vars can be inline in the compose file.
 
 ## Dynamic WAN DNS (`homelab.wan-expose`)
 
-`.lab` services are LAN/internal-only by default. To also expose one on WAN without hand-editing Cloudflare, add **both**:
-
-1. A second Traefik router for the `.app.` hostname (see `docker/corporate/iam/compose.yaml` for the reference example, following the same dual-router pattern as `docker/gaming/foundryvtt/compose.yaml`).
-2. The label `homelab.wan-expose=true` on that same service.
+`.lab` services are LAN/internal-only by default. To also expose one on WAN without hand-editing Cloudflare, add the label `homelab.wan-expose=true` to the service (see `docker/corporate/iam/compose.yaml` or `docker/gaming/foundryvtt/compose.yaml` for reference examples):
 
 ```yaml
 labels:
-  - "traefik.http.routers.myapp-lab.rule=Host(`myapp.lab.marioverde.com.br`)"
-  - "traefik.http.routers.myapp-lab.entrypoints=websecure"
-  - "traefik.http.routers.myapp-lab.tls.certresolver=cloudflare"
-  - "traefik.http.routers.myapp-app.rule=Host(`myapp.app.marioverde.com.br`)"
-  - "traefik.http.routers.myapp-app.entrypoints=websecure"
-  - "traefik.http.routers.myapp-app.tls.certresolver=cloudflare"
+  - "traefik.http.routers.myapp.rule=Host(`myapp.lab.marioverde.com.br`)"
+  - "traefik.http.routers.myapp.entrypoints=websecure"
+  - "traefik.http.routers.myapp.tls.certresolver=cloudflare"
   - "traefik.http.services.myapp.loadbalancer.server.port=80"
   - "homelab.wan-expose=true"
 ```
 
-The `dns-sync` watcher (`docker/platform/dns-sync/`, source in `scripts/dns-sync/`) watches the Docker socket for this label, reads every `.app.`/`.lab.` `Host()` rule on the container to find the hostname(s) — a service with both a `-lab` and `-app` router gets both DNS records — and creates/deletes the matching Cloudflare record(s) as the container starts/stops (deletion only after a 24h absence grace period, not immediately). No manual Cloudflare dashboard step needed. It does not create Traefik routers; the router(s) above are still required for traffic to actually reach the service. See `scripts/dns-sync/CLAUDE.md` for the label contract, record semantics, and how to build/push a new image version to the private registry.
+The `dns-sync` watcher (`docker/platform/dns-sync/`, source in `scripts/dns-sync/`) watches the Docker socket for this label, reads every `.lab.` `Host()` rule on the container to find the hostname(s) — a service with multiple matching routers gets a record for each — and creates/deletes the matching Cloudflare record(s) as the container starts/stops (deletion only after a 24h absence grace period, not immediately). No manual Cloudflare dashboard step needed. It does not create Traefik routers; the router above is still required for traffic to actually reach the service. See `scripts/dns-sync/CLAUDE.md` for the label contract, record semantics, and how to build/push a new image version to the private registry.
 
 ## Custom Tooling (`scripts/`)
 
