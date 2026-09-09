@@ -2,11 +2,13 @@
 Watches the Docker socket for containers labeled `homelab.wan-expose=true` and
 keeps matching Cloudflare DNS records in sync with their lifecycle.
 
-For each labeled container, the hostname to publish is read from its Traefik
-router label(s): `traefik.http.routers.<name>.rule=Host(`<hostname>`)`, using
-whichever router rule resolves to an `*.app.marioverde.com.br` host. On
-container start (or at boot, via a reconciliation pass) the matching Cloudflare
-record is created/updated immediately.
+For each labeled container, the hostname(s) to publish are read from its
+Traefik router label(s): `traefik.http.routers.<name>.rule=Host(`<hostname>`)`.
+Every router rule resolving to an `*.app.marioverde.com.br` or
+`*.lab.marioverde.com.br` host is published — a container with both a `-lab`
+and `-app` router gets both DNS records. On container start (or at boot, via
+a reconciliation pass) each matching Cloudflare record is created/updated
+immediately.
 
 Deletion is deliberately NOT immediate: a hostname is only deleted once it has
 been continuously absent (no running labeled container serving it) for
@@ -28,7 +30,7 @@ import requests
 LABEL = "homelab.wan-expose"
 LABEL_TRUE = "true"
 HOST_RULE_RE = re.compile(r"Host\(`([^`]+)`\)")
-APP_DOMAIN_SUFFIX = ".app.marioverde.com.br"
+MANAGED_DOMAIN_SUFFIXES = (".app.marioverde.com.br", ".lab.marioverde.com.br")
 
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
 CF_API_TOKEN = os.environ["CLOUDFLARE_API_TOKEN"]
@@ -49,14 +51,15 @@ cf_session.headers.update(
 )
 
 
-def wan_hostname_from_labels(labels: dict) -> str | None:
+def wan_hostnames_from_labels(labels: dict) -> set[str]:
+    hostnames = set()
     for key, value in labels.items():
         if not key.startswith("traefik.http.routers.") or not key.endswith(".rule"):
             continue
         match = HOST_RULE_RE.search(value)
-        if match and match.group(1).endswith(APP_DOMAIN_SUFFIX):
-            return match.group(1)
-    return None
+        if match and match.group(1).endswith(MANAGED_DOMAIN_SUFFIXES):
+            hostnames.add(match.group(1))
+    return hostnames
 
 
 def load_absent_since() -> dict[str, float]:
@@ -120,14 +123,14 @@ def cf_delete_record(hostname: str) -> None:
 def active_hostnames(client: docker.DockerClient) -> set[str]:
     hostnames = set()
     for container in client.containers.list(filters={"label": f"{LABEL}={LABEL_TRUE}"}):
-        hostname = wan_hostname_from_labels(container.labels)
-        if not hostname:
+        container_hostnames = wan_hostnames_from_labels(container.labels)
+        if not container_hostnames:
             log.warning(
-                "container %s has %s=%s but no *.app.marioverde.com.br Host() router label",
+                "container %s has %s=%s but no *.app./.lab.marioverde.com.br Host() router label",
                 container.name, LABEL, LABEL_TRUE,
             )
             continue
-        hostnames.add(hostname)
+        hostnames.update(container_hostnames)
     return hostnames
 
 
@@ -168,15 +171,19 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
     if labels.get(LABEL) != LABEL_TRUE:
         return
 
-    hostname = wan_hostname_from_labels(labels)
-    if not hostname:
+    hostnames = wan_hostnames_from_labels(labels)
+    if not hostnames:
         return
 
     status = event.get("status")
     if status == "start":
-        cf_upsert_record(hostname)
         absent_since = load_absent_since()
-        if absent_since.pop(hostname, None) is not None:
+        changed = False
+        for hostname in hostnames:
+            cf_upsert_record(hostname)
+            if absent_since.pop(hostname, None) is not None:
+                changed = True
+        if changed:
             save_absent_since(absent_since)
     # Deliberately no action on die/stop/destroy here — deletion only happens
     # via reconcile() after the hostname has been continuously absent for

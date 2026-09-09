@@ -73,7 +73,7 @@ labels:
   - "homelab.wan-expose=true"
 ```
 
-The `dns-sync` watcher (`docker/platform/dns-sync/`, source in `scripts/dns-sync/`) watches the Docker socket for this label, reads the `.app.` `Host()` rule to find the hostname, and creates/deletes the matching Cloudflare DNS record as the container starts/stops — no manual Cloudflare dashboard step. It does not create Traefik routers; the router above is still required for traffic to actually reach the service. See `scripts/dns-sync/CLAUDE.md` for the label contract, record semantics, and how to build/push a new image version to the private registry.
+The `dns-sync` watcher (`docker/platform/dns-sync/`, source in `scripts/dns-sync/`) watches the Docker socket for this label, reads every `.app.`/`.lab.` `Host()` rule on the container to find the hostname(s) — a service with both a `-lab` and `-app` router gets both DNS records — and creates/deletes the matching Cloudflare record(s) as the container starts/stops (deletion only after a 24h absence grace period, not immediately). No manual Cloudflare dashboard step needed. It does not create Traefik routers; the router(s) above are still required for traffic to actually reach the service. See `scripts/dns-sync/CLAUDE.md` for the label contract, record semantics, and how to build/push a new image version to the private registry.
 
 ## Custom Tooling (`scripts/`)
 
