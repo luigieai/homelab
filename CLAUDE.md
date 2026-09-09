@@ -54,6 +54,31 @@ networks:
 
 **Secrets**: Sensitive env vars go in `.env` (not committed). Always create a `.env.example`. Non-sensitive vars can be inline in the compose file.
 
+## Dynamic WAN DNS (`homelab.wan-expose`)
+
+`.lab` services are LAN/internal-only by default. To also expose one on WAN without hand-editing Cloudflare, add **both**:
+
+1. A second Traefik router for the `.app.` hostname (see `docker/corporate/iam/compose.yaml` for the reference example, following the same dual-router pattern as `docker/gaming/foundryvtt/compose.yaml`).
+2. The label `homelab.wan-expose=true` on that same service.
+
+```yaml
+labels:
+  - "traefik.http.routers.myapp-lab.rule=Host(`myapp.lab.marioverde.com.br`)"
+  - "traefik.http.routers.myapp-lab.entrypoints=websecure"
+  - "traefik.http.routers.myapp-lab.tls.certresolver=cloudflare"
+  - "traefik.http.routers.myapp-app.rule=Host(`myapp.app.marioverde.com.br`)"
+  - "traefik.http.routers.myapp-app.entrypoints=websecure"
+  - "traefik.http.routers.myapp-app.tls.certresolver=cloudflare"
+  - "traefik.http.services.myapp.loadbalancer.server.port=80"
+  - "homelab.wan-expose=true"
+```
+
+The `dns-sync` watcher (`docker/platform/dns-sync/`, source in `scripts/dns-sync/`) watches the Docker socket for this label, reads the `.app.` `Host()` rule to find the hostname, and creates/deletes the matching Cloudflare DNS record as the container starts/stops — no manual Cloudflare dashboard step. It does not create Traefik routers; the router above is still required for traffic to actually reach the service. See `scripts/dns-sync/CLAUDE.md` for the label contract, record semantics, and how to build/push a new image version to the private registry.
+
+## Custom Tooling (`scripts/`)
+
+Source code for anything custom-built (not a third-party image) lives under top-level `scripts/`, one directory per tool, each with its own `CLAUDE.md` and `Dockerfile`. `docker/` never builds these in place — images are built and pushed to the private registry (`docker/platform/registry`) manually, then the corresponding `docker/platform/<tool>/` stack pulls and deploys the pre-built image, same as any other stack.
+
 ## Deploy Commands
 
 ```bash

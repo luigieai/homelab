@@ -1,0 +1,25 @@
+###################################
+# DNS SYNC                        #
+###################################
+## Watches Docker containers labeled `homelab.wan-expose=true` and keeps
+## matching Cloudflare DNS records (*.app.marioverde.com.br) in sync with
+## their lifecycle. Source: ../../../scripts/dns-sync/
+
+services:
+  dns-sync:
+    image: registry.lab.marioverde.com.br/dns-sync:${DNS_SYNC_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      CLOUDFLARE_ZONE_ID: ${CLOUDFLARE_ZONE_ID}
+      DNS_RECORD_TARGET: ${DNS_RECORD_TARGET}
+      DNS_RECORD_TYPE: ${DNS_RECORD_TYPE:-CNAME}
+      DNS_RECORD_PROXIED: ${DNS_RECORD_PROXIED:-false}
+      RECONCILE_INTERVAL_SECONDS: ${RECONCILE_INTERVAL_SECONDS:-300}
+      DELETE_GRACE_SECONDS: ${DELETE_GRACE_SECONDS:-86400}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dns_sync_state:/state
+
+volumes:
+  dns_sync_state:

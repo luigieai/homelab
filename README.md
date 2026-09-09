@@ -19,6 +19,7 @@ Base infrastructure — the most critical and sensitive pieces. Everything else 
 - **Docker Compose** — container orchestration
 - **Traefik** — reverse proxy and TLS termination (via Cloudflare DNS challenge), running with `network_mode: host`
 - **Cloudflare DDNS** — keeps DNS records in sync with the home WAN IP
+- **dns-sync** — watches Docker containers labeled `homelab.wan-expose=true` and creates/removes matching Cloudflare DNS records as they start/stop, so a `.lab` service can opt into WAN exposure on the fly
 - **Container Registry** — private Docker image registry (Distribution v3) with a browsing UI, no auth yet (internal `.lab` only)
 
 ### Corporate
@@ -42,10 +43,11 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 |---|---|---|
 | Traefik v3.6 | Platform | `traefik.lab.marioverde.com.br` |
 | Cloudflare DDNS | Platform | — |
+| dns-sync | Platform | — |
 | Container Registry | Platform | `registry.lab.marioverde.com.br` |
 | Registry UI | Platform | `registry-ui.lab.marioverde.com.br` |
 | CoreDNS (LXC) | Corporate | — |
-| authentik | Corporate | `auth.lab.marioverde.com.br` |
+| authentik | Corporate | `auth.lab.marioverde.com.br` / `auth.app.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
 | RomM | Gaming servers | `romm.lab.marioverde.com.br` |
 | Foundry VTT | Gaming servers | `foundryvtt.lab.marioverde.com.br` / `foundryvtt.app.marioverde.com.br` |
@@ -55,4 +57,6 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 ## Domain Pattern
 
 - `APPNAME.app.marioverde.com.br` = Apps that will be deployed in WAN
-- `APPNAME.lab.marioverde.com.br` - Apps deployerd both in LAN and Internal network. 
+- `APPNAME.lab.marioverde.com.br` - Apps deployerd both in LAN and Internal network.
+
+A `.lab` app can selectively also become WAN-reachable, without losing its `.lab` (LAN) access, by adding an `.app.` Traefik router plus the `homelab.wan-expose=true` label — see `CLAUDE.md` for the exact pattern. The `dns-sync` service then creates/removes the Cloudflare DNS record automatically as that container starts/stops.

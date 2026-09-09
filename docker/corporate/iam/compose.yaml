@@ -34,10 +34,14 @@ services:
       - corporate_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.authentik.rule=Host(`auth.lab.marioverde.com.br`)"
-      - "traefik.http.routers.authentik.entrypoints=websecure"
-      - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
+      - "traefik.http.routers.authentik-lab.rule=Host(`auth.lab.marioverde.com.br`)"
+      - "traefik.http.routers.authentik-lab.entrypoints=websecure"
+      - "traefik.http.routers.authentik-lab.tls.certresolver=cloudflare"
+      - "traefik.http.routers.authentik-app.rule=Host(`auth.app.marioverde.com.br`)"
+      - "traefik.http.routers.authentik-app.entrypoints=websecure"
+      - "traefik.http.routers.authentik-app.tls.certresolver=cloudflare"
       - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+      - "homelab.wan-expose=true"
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:2026.5.4
