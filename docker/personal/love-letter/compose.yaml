@@ -1,0 +1,17 @@
+services:
+  love-letter:
+    image: registry.lab.marioverde.com.br/love-letter:latest
+    restart: unless-stopped
+    networks:
+      - love_letter_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.love-letter.rule=Host(`letter.lab.marioverde.com.br`)"
+      - "traefik.http.routers.love-letter.entrypoints=websecure"
+      - "traefik.http.routers.love-letter.tls.certresolver=cloudflare"
+      - "traefik.http.services.love-letter.loadbalancer.server.port=80"
+      - "homelab.wan-expose=true"
+
+networks:
+  love_letter_network:
+    driver: bridge
