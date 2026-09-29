@@ -1,5 +1,8 @@
 # devws — user manual
 
+> **Canonical copy:** this file lives in the `homelab` repo (`docs/devws-manual.md`). Edit it here.
+> `/root/devws/MANUAL.md` is only a pointer.
+
 Everything in here is about **CT 300 (`luigi-devworkspace`)**, your dev box. It is written for you,
 not for an agent: it is the "how do I actually use this day to day" document. The terse version lives
 in `README.md`; the acceptance suite lives in `tests/selftest.sh`.
