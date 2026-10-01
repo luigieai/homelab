@@ -23,9 +23,10 @@ see "Build and deploy a new version" below.
    record immediately. `die`/`stop`/`destroy` events do **not** delete
    anything — deletion only ever happens via reconciliation (see below).
 3. Re-reconciles periodically (`RECONCILE_INTERVAL_SECONDS`, default 300s).
-   Reconciliation is also what performs deletion: a hostname that is
-   currently absent (no running labeled container serving it) is tracked
-   with a "first seen absent" timestamp in a small state file
+   Reconciliation is also what performs deletion: a hostname observed
+   actively exposed at least once is remembered as "managed"; when it is
+   no longer served by a running labeled container it gets a "first seen
+   absent" timestamp in a small state file
    (`STATE_FILE`, default `/state/absent-since.json`, on a persisted
    volume). Only once a hostname has been **continuously absent for
    `DELETE_GRACE_SECONDS`** (default 24h) is its Cloudflare record actually
@@ -102,10 +103,34 @@ to actually reach the service.
 ## State file
 
 `/state/absent-since.json` (mounted from the `dns_sync_state` volume in
-`docker/platform/dns-sync/compose.yaml`) maps hostname → unix timestamp of
-when it was first observed absent. It must persist across dns-sync
-container restarts, otherwise the grace period silently resets to zero
-every deploy and the safety guarantee is lost. To delete a hostname ahead of schedule, use the explicit, token-gated
+`docker/platform/dns-sync/compose.yaml`) has two parts:
+
+```json
+{"absent_since": {"gone.lab.marioverde.com.br": 1790893000.0},
+ "managed": ["svc.lab.marioverde.com.br", "gone.lab.marioverde.com.br"]}
+```
+
+- `managed` — every hostname observed actively exposed at least once
+  (added on first sight, re-added if it returns). Only these are ever
+  deletion candidates; dns-sync never sweeps Cloudflare or touches a
+  hostname it has not seen active.
+- `absent_since` — hostname → unix timestamp of when a managed hostname
+  was first observed absent. The grace period counts from it.
+
+Deleting a hostname (grace elapsed, or force) drops it from both parts, so
+a still-gone container is not re-deleted every pass and a returning one
+starts clean. The file must persist across dns-sync container restarts,
+otherwise the grace period silently resets to zero every deploy and the
+safety guarantee is lost.
+
+Upgrade path: a legacy flat `{hostname: timestamp}` file (0.3.0 and
+earlier) loads with `managed` = its keys and its timers untouched, and is
+rewritten in the new shape on the next write. **0.3.0 and earlier never
+recorded new absences**, so grace deletion and force only ever acted on
+hostnames already in the file. Containers removed under those versions
+left no trace; their Cloudflare records must be removed by hand.
+
+To delete a hostname ahead of schedule, use the explicit, token-gated
 `force` mode of the HTTP trigger (see "Manual trigger (HTTP webhook)") —
 it is never applied by the periodic pass or by container lifecycle events.
 Editing/clearing this file by hand also works. Don't add any
