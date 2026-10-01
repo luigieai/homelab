@@ -5,6 +5,7 @@ import os
 import tempfile
 import threading
 import time
+import types
 import unittest
 import urllib.error
 import urllib.request
@@ -20,6 +21,9 @@ import dns_sync  # noqa: E402
 
 HOST_NEW = "new.lab.marioverde.com.br"
 HOST_OLD = "old.lab.marioverde.com.br"
+HOST_GONE = "gone.lab.marioverde.com.br"
+HOST_KEEP = "keep.lab.marioverde.com.br"
+HOST_NEVER = "never.lab.marioverde.com.br"
 
 
 class ParseArgsTest(unittest.TestCase):
@@ -78,8 +82,8 @@ class DryRunReconcileTest(unittest.TestCase):
         with mock.patch.object(dns_sync, "DRY_RUN", True), \
                 mock.patch.object(dns_sync, "cf_session") as session, \
                 mock.patch.object(dns_sync, "active_hostnames", return_value={HOST_NEW}), \
-                mock.patch.object(dns_sync, "load_absent_since", side_effect=lambda: dict(state)), \
-                mock.patch.object(dns_sync, "save_absent_since") as save, \
+                mock.patch.object(dns_sync, "load_state", side_effect=lambda: (dict(state), set(state))), \
+                mock.patch.object(dns_sync, "save_state") as save, \
                 self.assertLogs("dns-sync", "INFO") as logs:
             dns_sync.reconcile(mock.Mock())
         output = "\n".join(logs.output)
@@ -174,7 +178,7 @@ class ReconcileSummaryTest(unittest.TestCase):
 
     def _state(self):
         with open(self.state_path) as f:
-            return json.load(f)
+            return json.load(f)["absent_since"]
 
     def test_normal_mode_keeps_absent_hostname_in_grace_and_reports_pending(self):
         summary = dns_sync.reconcile(mock.Mock())
@@ -198,6 +202,209 @@ class ReconcileSummaryTest(unittest.TestCase):
         self.assertEqual(summary["deleted"], [HOST_OLD])
         self.assertEqual(summary["pending"], [])
         self.assertNotIn(HOST_OLD, self._state())
+
+
+class LoadSaveStateTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.state_path = os.path.join(tmp.name, "absent-since.json")
+        self.enterContext(mock.patch.object(dns_sync, "STATE_FILE", self.state_path))
+
+    def _write(self, text):
+        with open(self.state_path, "w") as f:
+            f.write(text)
+
+    def test_missing_file_loads_empty(self):
+        self.assertEqual(dns_sync.load_state(), ({}, set()))
+
+    def test_corrupt_file_loads_empty(self):
+        self._write("{not json")
+        self.assertEqual(dns_sync.load_state(), ({}, set()))
+
+    def test_legacy_flat_file_keeps_timers_and_manages_its_keys(self):
+        self._write(json.dumps({HOST_OLD: 123.5}))
+        self.assertEqual(dns_sync.load_state(), ({HOST_OLD: 123.5}, {HOST_OLD}))
+
+    def test_new_shape_loads_both_parts(self):
+        self._write(
+            json.dumps({"absent_since": {HOST_GONE: 7.0}, "managed": [HOST_KEEP, HOST_GONE]})
+        )
+        self.assertEqual(
+            dns_sync.load_state(), ({HOST_GONE: 7.0}, {HOST_KEEP, HOST_GONE})
+        )
+
+    def test_save_writes_new_shape_atomically(self):
+        dns_sync.save_state({HOST_GONE: 7.0}, {HOST_KEEP, HOST_GONE})
+        with open(self.state_path) as f:
+            self.assertEqual(
+                json.load(f),
+                {"absent_since": {HOST_GONE: 7.0}, "managed": sorted([HOST_KEEP, HOST_GONE])},
+            )
+        self.assertFalse(os.path.exists(self.state_path + ".tmp"))
+
+
+def container(*hostnames):
+    labels = {dns_sync.LABEL: dns_sync.LABEL_TRUE}
+    for i, hostname in enumerate(hostnames):
+        labels[f"traefik.http.routers.r{i}.rule"] = f"Host(`{hostname}`)"
+    return types.SimpleNamespace(name="svc", labels=labels)
+
+
+class ManagedTrackingTest(unittest.TestCase):
+    GRACE = 1000
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.state_path = os.path.join(tmp.name, "absent-since.json")
+        self.clock = 1_000_000.0
+        self.running = []
+        self.client = mock.Mock()
+        self.client.containers.list.side_effect = lambda filters=None: list(self.running)
+        self.enterContext(mock.patch.object(dns_sync, "DRY_RUN", False))
+        self.enterContext(mock.patch.object(dns_sync, "STATE_FILE", self.state_path))
+        self.enterContext(mock.patch.object(dns_sync, "DELETE_GRACE_SECONDS", self.GRACE))
+        self.enterContext(
+            mock.patch.object(dns_sync, "time", mock.Mock(time=lambda: self.clock))
+        )
+        self.session = self.enterContext(mock.patch.object(dns_sync, "cf_session"))
+        # cf_upsert_record / cf_delete_record stay real; every Cloudflare lookup goes
+        # through this mock so tests can assert which hostnames were ever queried.
+        self.find = self.enterContext(
+            mock.patch.object(
+                dns_sync,
+                "cf_find_record",
+                return_value={
+                    "id": "rec",
+                    "content": dns_sync.RECORD_TARGET,
+                    "proxied": dns_sync.RECORD_PROXIED,
+                },
+            )
+        )
+
+    def _write(self, data):
+        with open(self.state_path, "w") as f:
+            json.dump(data, f)
+
+    def _state(self):
+        with open(self.state_path) as f:
+            return json.load(f)
+
+    def _queried(self):
+        return [call.args[0] for call in self.find.call_args_list]
+
+    def test_removed_container_flows_through_pending_to_grace_deletion(self):
+        self.running = [container(HOST_GONE)]
+        first = dns_sync.reconcile(self.client)
+        self.assertEqual(first["pending"], [])
+        self.assertEqual(first["deleted"], [])
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": [HOST_GONE]})
+
+        self.running = []
+        self.clock += 60
+        second = dns_sync.reconcile(self.client)
+        self.assertEqual(
+            second["pending"], [{"hostname": HOST_GONE, "seconds_remaining": self.GRACE}]
+        )
+        self.assertEqual(self._state()["absent_since"], {HOST_GONE: self.clock})
+
+        self.clock += self.GRACE - 1
+        third = dns_sync.reconcile(self.client)
+        self.assertEqual(
+            third["pending"], [{"hostname": HOST_GONE, "seconds_remaining": 1}]
+        )
+        self.session.delete.assert_not_called()
+
+        self.clock += 1
+        fourth = dns_sync.reconcile(self.client)
+        self.assertEqual(fourth["deleted"], [HOST_GONE])
+        self.assertEqual(fourth["pending"], [])
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": []})
+        self.assertEqual(self.session.delete.call_count, 1)
+
+        fifth = dns_sync.reconcile(self.client)
+        self.assertEqual(fifth["deleted"], [])
+        self.assertEqual(self.session.delete.call_count, 1)
+
+    def test_force_deletes_newly_absent_managed_hostname(self):
+        self.running = [container(HOST_GONE)]
+        dns_sync.reconcile(self.client)
+        self.running = []
+        summary = dns_sync.reconcile(self.client, force=True)
+        self.assertEqual(summary["mode"], "force")
+        self.assertEqual(summary["deleted"], [HOST_GONE])
+        self.assertEqual(summary["pending"], [])
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": []})
+
+    def test_returning_container_starts_with_a_clean_timer(self):
+        self.running = [container(HOST_GONE)]
+        dns_sync.reconcile(self.client)
+        self.running = []
+        self.clock += 60
+        dns_sync.reconcile(self.client)  # timer starts
+        self.clock += 500
+        self.running = [container(HOST_GONE)]
+        dns_sync.reconcile(self.client)  # back: timer cleared
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": [HOST_GONE]})
+        self.running = []
+        self.clock += 10
+        again = dns_sync.reconcile(self.client)
+        self.assertEqual(
+            again["pending"], [{"hostname": HOST_GONE, "seconds_remaining": self.GRACE}]
+        )
+
+    def test_never_seen_hostname_is_never_a_deletion_candidate(self):
+        self._write(
+            {
+                "absent_since": {HOST_OLD: self.clock - self.GRACE - 1},
+                "managed": [HOST_KEEP, HOST_OLD],
+            }
+        )
+        self.running = [container(HOST_KEEP)]
+        summary = dns_sync.reconcile(self.client, force=True)
+        self.assertEqual(summary["deleted"], [HOST_OLD])
+        self.assertEqual(sorted(set(self._queried())), sorted([HOST_KEEP, HOST_OLD]))
+        self.assertNotIn(HOST_NEVER, self._queried())
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": [HOST_KEEP]})
+
+    def test_absent_since_entry_outside_managed_is_ignored_and_dropped(self):
+        self._write({"absent_since": {HOST_NEVER: 0.0}, "managed": [HOST_KEEP]})
+        self.running = [container(HOST_KEEP)]
+        summary = dns_sync.reconcile(self.client, force=True)
+        self.assertEqual(summary["deleted"], [])
+        self.assertEqual(summary["pending"], [])
+        self.assertNotIn(HOST_NEVER, self._queried())
+        self.session.delete.assert_not_called()
+        self.assertEqual(self._state(), {"absent_since": {}, "managed": [HOST_KEEP]})
+
+    def test_legacy_flat_state_keeps_timers_and_is_rewritten_in_new_shape(self):
+        self._write({HOST_OLD: self.clock - 100})
+        self.running = [container(HOST_NEW)]
+        summary = dns_sync.reconcile(self.client)
+        self.assertEqual(
+            summary["pending"],
+            [{"hostname": HOST_OLD, "seconds_remaining": self.GRACE - 100}],
+        )
+        self.assertEqual(
+            self._state(),
+            {
+                "absent_since": {HOST_OLD: self.clock - 100},
+                "managed": sorted([HOST_NEW, HOST_OLD]),
+            },
+        )
+
+    def test_start_event_records_hostname_as_managed_and_keeps_existing_state(self):
+        self._write({"absent_since": {HOST_GONE: self.clock - 5}, "managed": [HOST_GONE]})
+        event = {"status": "start", "Actor": {"Attributes": container(HOST_NEW).labels}}
+        dns_sync.handle_event(event, self.client)
+        self.assertEqual(
+            self._state(),
+            {
+                "absent_since": {HOST_GONE: self.clock - 5},
+                "managed": sorted([HOST_GONE, HOST_NEW]),
+            },
+        )
 
 
 class LockedReconcileTest(unittest.TestCase):

@@ -12,8 +12,10 @@ Cloudflare record is created/updated immediately.
 Deletion is deliberately NOT immediate: a hostname is only deleted once it has
 been continuously absent (no running labeled container serving it) for
 DELETE_GRACE_SECONDS (default 24h). This guards against a transient restart,
-crash-loop, or missed event wiping public DNS. Absence is tracked in a small
-state file so the grace period survives a dns-sync restart too.
+crash-loop, or missed event wiping public DNS. Only hostnames observed
+actively exposed at least once are ever candidates; they and their
+first-absent timestamps are tracked in a small state file so the grace
+period survives a dns-sync restart too.
 
 An optional HTTP trigger (POST/GET /reconcile, GET /healthz; see CLAUDE.md,
 "Manual trigger (HTTP webhook)") runs one reconcile pass on demand. It only
@@ -80,19 +82,26 @@ def wan_hostnames_from_labels(labels: dict) -> set[str]:
     return hostnames
 
 
-def load_absent_since() -> dict[str, float]:
+def load_state() -> tuple[dict[str, float], set[str]]:
+    """Returns (absent_since, managed). A legacy flat {host: ts} file loads as
+    absent_since with managed = its keys; the next save_state() upgrades it."""
     try:
         with open(STATE_FILE) as f:
-            return json.load(f)
+            data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        return {}, set()
+    if not isinstance(data, dict):
+        return {}, set()
+    if "absent_since" in data or "managed" in data:
+        return dict(data.get("absent_since", {})), set(data.get("managed", []))
+    return data, set(data)
 
 
-def save_absent_since(absent_since: dict[str, float]) -> None:
+def save_state(absent_since: dict[str, float], managed: set[str]) -> None:
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     tmp_path = f"{STATE_FILE}.tmp"
     with open(tmp_path, "w") as f:
-        json.dump(absent_since, f)
+        json.dump({"absent_since": absent_since, "managed": sorted(managed)}, f)
     os.replace(tmp_path, STATE_FILE)
 
 
@@ -176,8 +185,10 @@ def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
     never by the periodic pass.
     """
     now = time.time()
-    absent_since = load_absent_since()
+    absent_since, managed = load_state()
     active = active_hostnames(client)
+    managed |= active
+    absent_since = {h: ts for h, ts in absent_since.items() if h in managed}
     summary = {
         "status": "ok",
         "mode": "force" if force else "normal",
@@ -196,8 +207,8 @@ def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
             summary[action].append(hostname)
         absent_since.pop(hostname, None)
 
-    for hostname in sorted(absent_since):
-        remaining = DELETE_GRACE_SECONDS - (now - absent_since[hostname])
+    for hostname in sorted(managed - active):
+        remaining = DELETE_GRACE_SECONDS - (now - absent_since.setdefault(hostname, now))
         if force or remaining <= 0:
             if force and remaining > 0:
                 log.warning(
@@ -206,6 +217,7 @@ def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
             if cf_delete_record(hostname) == "deleted":
                 summary["deleted"].append(hostname)
             del absent_since[hostname]
+            managed.discard(hostname)
         else:
             log.info("hostname %s absent, %ds until deletion", hostname, int(remaining))
             summary["pending"].append(
@@ -213,7 +225,7 @@ def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
             )
 
     if not DRY_RUN:
-        save_absent_since(absent_since)
+        save_state(absent_since, managed)
     log.info(
         "reconciliation pass complete, %d active, %d pending deletion",
         len(active), len(absent_since),
@@ -251,14 +263,17 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
     status = event.get("status")
     if status == "start":
         with RECONCILE_LOCK:  # same state file as reconcile(); never interleave
-            absent_since = load_absent_since()
+            absent_since, managed = load_state()
             changed = False
             for hostname in hostnames:
                 cf_upsert_record(hostname)
                 if absent_since.pop(hostname, None) is not None:
                     changed = True
+                if hostname not in managed:
+                    managed.add(hostname)
+                    changed = True
             if changed:
-                save_absent_since(absent_since)
+                save_state(absent_since, managed)
     # Deliberately no action on die/stop/destroy here — deletion only happens
     # via reconcile() after the hostname has been continuously absent for
     # DELETE_GRACE_SECONDS, to avoid wiping DNS on a transient restart.
