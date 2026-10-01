@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
 
 import docker
@@ -44,6 +45,7 @@ RECONCILE_INTERVAL_SECONDS = int(os.environ.get("RECONCILE_INTERVAL_SECONDS", "3
 DELETE_GRACE_SECONDS = int(os.environ.get("DELETE_GRACE_SECONDS", str(24 * 60 * 60)))
 STATE_FILE = os.environ.get("STATE_FILE", "/state/absent-since.json")
 DRY_RUN = False  # set by main(); when True, no Cloudflare API call or state write is made
+RECONCILE_LOCK = threading.Lock()  # serialises every reconcile pass (state file is read/modify/write)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("dns-sync")
@@ -206,6 +208,24 @@ def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
     return summary
 
 
+def locked_reconcile(
+    client: docker.DockerClient, force: bool = False, blocking: bool = True
+) -> dict | None:
+    """reconcile() under RECONCILE_LOCK. Returns None if blocking=False and the lock is held."""
+    if not RECONCILE_LOCK.acquire(blocking=blocking):
+        return None
+    try:
+        return reconcile(client, force=force)
+    finally:
+        RECONCILE_LOCK.release()
+
+
+def periodic_reconcile(client: docker.DockerClient) -> None:
+    # Never forced; never waits for an in-flight pass.
+    if locked_reconcile(client, blocking=False) is None:
+        log.info("skipped, reconcile already running")
+
+
 def handle_event(event: dict, client: docker.DockerClient) -> None:
     labels = event.get("Actor", {}).get("Attributes", {})
     if labels.get(LABEL) != LABEL_TRUE:
@@ -217,14 +237,15 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
 
     status = event.get("status")
     if status == "start":
-        absent_since = load_absent_since()
-        changed = False
-        for hostname in hostnames:
-            cf_upsert_record(hostname)
-            if absent_since.pop(hostname, None) is not None:
-                changed = True
-        if changed:
-            save_absent_since(absent_since)
+        with RECONCILE_LOCK:  # same state file as reconcile(); never interleave
+            absent_since = load_absent_since()
+            changed = False
+            for hostname in hostnames:
+                cf_upsert_record(hostname)
+                if absent_since.pop(hostname, None) is not None:
+                    changed = True
+            if changed:
+                save_absent_since(absent_since)
     # Deliberately no action on die/stop/destroy here — deletion only happens
     # via reconcile() after the hostname has been continuously absent for
     # DELETE_GRACE_SECONDS, to avoid wiping DNS on a transient restart.
@@ -261,7 +282,7 @@ def main(dry_run: bool = False) -> None:
 
         if time.monotonic() - last_reconcile > RECONCILE_INTERVAL_SECONDS:
             try:
-                reconcile(client)
+                periodic_reconcile(client)
             except requests.HTTPError as exc:
                 log.error("Cloudflare API error during reconciliation: %s", exc)
             last_reconcile = time.monotonic()

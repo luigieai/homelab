@@ -200,5 +200,37 @@ class ReconcileSummaryTest(unittest.TestCase):
         self.assertNotIn(HOST_OLD, self._state())
 
 
+class LockedReconcileTest(unittest.TestCase):
+    def setUp(self):
+        self.lock = threading.Lock()
+        self.enterContext(mock.patch.object(dns_sync, "RECONCILE_LOCK", self.lock))
+        self.reconcile = self.enterContext(
+            mock.patch.object(dns_sync, "reconcile", return_value={"status": "ok"})
+        )
+
+    def test_runs_reconcile_without_force_by_default_and_releases_lock(self):
+        client = mock.Mock()
+        self.assertEqual(dns_sync.locked_reconcile(client), {"status": "ok"})
+        self.reconcile.assert_called_once_with(client, force=False)
+        self.assertFalse(self.lock.locked())
+
+    def test_non_blocking_returns_none_when_lock_held(self):
+        self.lock.acquire()
+        self.assertIsNone(dns_sync.locked_reconcile(mock.Mock(), blocking=False))
+        self.reconcile.assert_not_called()
+
+    def test_periodic_runs_without_force_when_free(self):
+        client = mock.Mock()
+        dns_sync.periodic_reconcile(client)
+        self.reconcile.assert_called_once_with(client, force=False)
+
+    def test_periodic_logs_skip_when_lock_held(self):
+        self.lock.acquire()
+        with self.assertLogs("dns-sync", "INFO") as logs:
+            dns_sync.periodic_reconcile(mock.Mock())
+        self.assertIn("skipped, reconcile already running", logs.output[0])
+        self.reconcile.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
