@@ -27,6 +27,8 @@ import time
 import docker
 import requests
 
+__version__ = "0.2.0"
+
 LABEL = "homelab.wan-expose"
 LABEL_TRUE = "true"
 HOST_RULE_RE = re.compile(r"Host\(`([^`]+)`\)")
@@ -206,6 +208,7 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("--version", action="version", version=f"dns-sync {__version__}")
     parser.add_argument(
         "--dry-run",
         action="store_true",
