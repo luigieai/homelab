@@ -14,9 +14,15 @@ been continuously absent (no running labeled container serving it) for
 DELETE_GRACE_SECONDS (default 24h). This guards against a transient restart,
 crash-loop, or missed event wiping public DNS. Absence is tracked in a small
 state file so the grace period survives a dns-sync restart too.
+
+An optional HTTP trigger (POST/GET /reconcile, GET /healthz; see CLAUDE.md,
+"Manual trigger (HTTP webhook)") runs one reconcile pass on demand. It only
+starts when WEBHOOK_TOKEN is set. `force` mode, which deletes absent hostnames
+ahead of the grace period, is reachable only through it, never periodically.
 """
 
 import argparse
+import hmac
 import json
 import logging
 import os
@@ -24,6 +30,8 @@ import re
 import sys
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 import docker
 import requests
@@ -46,6 +54,11 @@ DELETE_GRACE_SECONDS = int(os.environ.get("DELETE_GRACE_SECONDS", str(24 * 60 * 
 STATE_FILE = os.environ.get("STATE_FILE", "/state/absent-since.json")
 DRY_RUN = False  # set by main(); when True, no Cloudflare API call or state write is made
 RECONCILE_LOCK = threading.Lock()  # serialises every reconcile pass (state file is read/modify/write)
+WEBHOOK_TOKEN = os.environ.get("WEBHOOK_TOKEN", "").strip()  # empty -> HTTP listener disabled
+HTTP_BIND = os.environ.get("HTTP_BIND", "0.0.0.0")
+HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
+HTTP_MAX_BODY_BYTES = 64 * 1024
+HTTP_ROUTES = {"/reconcile": ("GET", "POST"), "/healthz": ("GET",)}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("dns-sync")
@@ -251,6 +264,115 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
     # DELETE_GRACE_SECONDS, to avoid wiping DNS on a transient restart.
 
 
+def make_handler(token: str, reconcile_fn):
+    """Request handler class. reconcile_fn(force=bool) must return the summary dict."""
+    token_bytes = token.encode()
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "dns-sync"
+
+        def log_message(self, fmt, *args):
+            log.info("http %s - %s", self.address_string(), fmt % args)
+
+        def _send(self, status, payload, headers=None):
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _error(self, status, message, headers=None):
+            self._send(status, {"status": "error", "error": message}, headers)
+
+        def _authorized(self):
+            scheme, _, supplied = self.headers.get("Authorization", "").partition(" ")
+            return scheme == "Bearer" and hmac.compare_digest(supplied.encode(), token_bytes)
+
+        def _read_force(self, query):
+            force = False
+            raw = query.get("force", [None])[0]
+            if raw is not None:
+                if raw.lower() in ("1", "true"):
+                    force = True
+                elif raw.lower() not in ("0", "false", ""):
+                    raise ValueError("query param force must be 1, true, 0 or false")
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                raise ValueError("invalid Content-Length")
+            if length < 0 or length > HTTP_MAX_BODY_BYTES:
+                raise ValueError("invalid body size")
+            if length:
+                try:
+                    body = json.loads(self.rfile.read(length))
+                except ValueError:
+                    raise ValueError("malformed JSON body")
+                if not isinstance(body, dict):
+                    raise ValueError("JSON body must be an object")
+                value = body.get("force", False)
+                if not isinstance(value, bool):
+                    raise ValueError('"force" must be a boolean')
+                force = force or value
+            return force
+
+        def _dispatch(self):
+            url = urlsplit(self.path)
+            allowed = HTTP_ROUTES.get(url.path)
+            if allowed is None:
+                return self._error(404, "not found")
+            if self.command not in allowed:
+                return self._error(405, "method not allowed", {"Allow": ", ".join(allowed)})
+            if url.path == "/healthz":
+                return self._send(200, {"status": "ok"})
+            if not self._authorized():
+                return self._error(401, "unauthorized", {"WWW-Authenticate": "Bearer"})
+            try:
+                force = self._read_force(parse_qs(url.query, keep_blank_values=True))
+            except ValueError as exc:
+                return self._error(400, str(exc))
+            if force:
+                log.warning("force reconcile requested via HTTP from %s", self.address_string())
+            try:
+                summary = reconcile_fn(force=force)
+            except requests.HTTPError as exc:
+                log.error("Cloudflare API error during HTTP-triggered reconcile: %s", exc)
+                return self._error(502, "Cloudflare API error")
+            except Exception:
+                log.exception("HTTP-triggered reconcile failed")
+                return self._error(500, "internal error")
+            log.info("HTTP-triggered reconcile finished (force=%s)", force)
+            self._send(200, summary)
+
+        do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _dispatch
+
+    return Handler
+
+
+def build_server(bind: str, port: int, token: str, reconcile_fn) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer((bind, port), make_handler(token, reconcile_fn))
+
+
+def start_http_server(client: docker.DockerClient) -> ThreadingHTTPServer | None:
+    """Starts the trigger endpoint in a daemon thread. Fails closed without WEBHOOK_TOKEN."""
+    if not WEBHOOK_TOKEN:
+        log.error("WEBHOOK_TOKEN is not set, HTTP trigger endpoint disabled")
+        return None
+    try:
+        server = build_server(
+            HTTP_BIND, HTTP_PORT, WEBHOOK_TOKEN,
+            lambda force: locked_reconcile(client, force=force),
+        )
+    except OSError as exc:
+        log.error("cannot start HTTP trigger endpoint on %s:%d: %s", HTTP_BIND, HTTP_PORT, exc)
+        return None
+    threading.Thread(target=server.serve_forever, name="http-trigger", daemon=True).start()
+    log.info("HTTP trigger endpoint listening on %s:%d", HTTP_BIND, HTTP_PORT)
+    return server
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--version", action="version", version=f"dns-sync {__version__}")
@@ -273,6 +395,7 @@ def main(dry_run: bool = False) -> None:
         log.info("[dry-run] done, exiting without watching events")
         return
 
+    start_http_server(client)
     last_reconcile = time.monotonic()
     for event in client.events(decode=True, filters={"type": "container"}):
         try:

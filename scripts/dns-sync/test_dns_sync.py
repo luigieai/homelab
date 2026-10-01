@@ -232,5 +232,146 @@ class LockedReconcileTest(unittest.TestCase):
         self.reconcile.assert_not_called()
 
 
+TOKEN = "s3cret-token"
+_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def http_call(port, method, path, token=TOKEN, body=None, raw=None):
+    headers = {}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
+    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}", data=data, method=method, headers=headers
+    )
+    try:
+        with _opener.open(req, timeout=5) as resp:
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        with exc:
+            return exc.code, json.loads(exc.read())
+
+
+class HttpEndpointTest(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+
+        def fake_reconcile(force=False):
+            self.calls.append(force)
+            return {"status": "ok", "mode": "force" if force else "normal"}
+
+        self.port = self.serve(fake_reconcile)
+
+    def serve(self, reconcile_fn):
+        server = dns_sync.build_server("127.0.0.1", 0, TOKEN, reconcile_fn)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return server.server_address[1]
+
+    def test_post_without_token_is_401(self):
+        status, body = http_call(self.port, "POST", "/reconcile", token=None)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_post_with_wrong_token_is_401(self):
+        status, body = http_call(self.port, "POST", "/reconcile", token="nope")
+        self.assertEqual(status, 401)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_post_with_correct_token_returns_summary(self):
+        status, body = http_call(self.port, "POST", "/reconcile")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, {"status": "ok", "mode": "normal"})
+        self.assertEqual(self.calls, [False])
+
+    def test_body_force_true_is_forwarded(self):
+        status, body = http_call(self.port, "POST", "/reconcile", body={"force": True})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["mode"], "force")
+        self.assertEqual(self.calls, [True])
+
+    def test_query_force_is_forwarded(self):
+        status, _ = http_call(self.port, "POST", "/reconcile?force=1")
+        self.assertEqual(status, 200)
+        self.assertEqual(self.calls, [True])
+
+    def test_get_reconcile_requires_auth(self):
+        status, body = http_call(self.port, "GET", "/reconcile", token=None)
+        self.assertEqual(status, 401)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_get_reconcile_runs_a_normal_pass(self):
+        status, body = http_call(self.port, "GET", "/reconcile")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["mode"], "normal")
+        self.assertEqual(self.calls, [False])
+
+    def test_healthz_needs_no_auth(self):
+        status, body = http_call(self.port, "GET", "/healthz", token=None)
+        self.assertEqual((status, body), (200, {"status": "ok"}))
+        self.assertEqual(self.calls, [])
+
+    def test_unknown_path_is_404(self):
+        status, body = http_call(self.port, "GET", "/nope")
+        self.assertEqual(status, 404)
+        self.assertEqual(body["status"], "error")
+
+    def test_delete_on_reconcile_is_405(self):
+        status, body = http_call(self.port, "DELETE", "/reconcile")
+        self.assertEqual(status, 405)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_malformed_json_body_is_400(self):
+        status, body = http_call(self.port, "POST", "/reconcile", raw=b"{not json")
+        self.assertEqual(status, 400)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_non_boolean_force_is_400(self):
+        status, body = http_call(self.port, "POST", "/reconcile", body={"force": "yes"})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(self.calls, [])
+
+    def test_cloudflare_error_is_502_json(self):
+        def boom(force=False):
+            raise requests.HTTPError("cf down")
+
+        port = self.serve(boom)
+        with self.assertLogs("dns-sync", "ERROR"):
+            status, body = http_call(port, "POST", "/reconcile")
+        self.assertEqual(status, 502)
+        self.assertEqual(body["status"], "error")
+
+
+class StartHttpServerTest(unittest.TestCase):
+    def test_not_started_and_one_error_logged_when_token_empty(self):
+        with mock.patch.object(dns_sync, "WEBHOOK_TOKEN", ""), \
+                mock.patch.object(dns_sync, "build_server") as build, \
+                self.assertLogs("dns-sync", "ERROR") as logs:
+            result = dns_sync.start_http_server(mock.Mock())
+        self.assertIsNone(result)
+        build.assert_not_called()
+        self.assertEqual(len(logs.output), 1)
+
+    def test_started_in_background_thread_when_token_set(self):
+        with mock.patch.object(dns_sync, "WEBHOOK_TOKEN", TOKEN), \
+                mock.patch.object(dns_sync, "build_server") as build, \
+                mock.patch.object(dns_sync.threading, "Thread") as thread:
+            result = dns_sync.start_http_server(mock.Mock())
+        self.assertIs(result, build.return_value)
+        build.assert_called_once()
+        thread.return_value.start.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()
