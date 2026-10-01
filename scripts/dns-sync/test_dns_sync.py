@@ -150,5 +150,55 @@ class RecordActionTest(unittest.TestCase):
         self.session.delete.assert_not_called()
 
 
+class ReconcileSummaryTest(unittest.TestCase):
+    GRACE = 1000
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.state_path = os.path.join(tmp.name, "absent-since.json")
+        with open(self.state_path, "w") as f:
+            json.dump({HOST_OLD: time.time() - 100}, f)  # ~900s of grace left
+        self.enterContext(mock.patch.object(dns_sync, "DRY_RUN", False))
+        self.enterContext(mock.patch.object(dns_sync, "STATE_FILE", self.state_path))
+        self.enterContext(mock.patch.object(dns_sync, "DELETE_GRACE_SECONDS", self.GRACE))
+        self.enterContext(
+            mock.patch.object(dns_sync, "active_hostnames", return_value={HOST_NEW})
+        )
+        self.upsert = self.enterContext(
+            mock.patch.object(dns_sync, "cf_upsert_record", return_value="created")
+        )
+        self.delete = self.enterContext(
+            mock.patch.object(dns_sync, "cf_delete_record", return_value="deleted")
+        )
+
+    def _state(self):
+        with open(self.state_path) as f:
+            return json.load(f)
+
+    def test_normal_mode_keeps_absent_hostname_in_grace_and_reports_pending(self):
+        summary = dns_sync.reconcile(mock.Mock())
+        self.delete.assert_not_called()
+        self.assertEqual(summary["status"], "ok")
+        self.assertEqual(summary["mode"], "normal")
+        self.assertFalse(summary["dry_run"])
+        self.assertEqual(summary["active"], [HOST_NEW])
+        self.assertEqual(summary["created"], [HOST_NEW])
+        self.assertEqual(summary["deleted"], [])
+        self.assertEqual(len(summary["pending"]), 1)
+        pending = summary["pending"][0]
+        self.assertEqual(pending["hostname"], HOST_OLD)
+        self.assertTrue(895 <= pending["seconds_remaining"] <= 900)
+        self.assertIn(HOST_OLD, self._state())
+
+    def test_force_mode_deletes_absent_hostname_and_drops_it_from_state(self):
+        summary = dns_sync.reconcile(mock.Mock(), force=True)
+        self.delete.assert_called_once_with(HOST_OLD)
+        self.assertEqual(summary["mode"], "force")
+        self.assertEqual(summary["deleted"], [HOST_OLD])
+        self.assertEqual(summary["pending"], [])
+        self.assertNotIn(HOST_OLD, self._state())
+
+
 if __name__ == "__main__":
     unittest.main()

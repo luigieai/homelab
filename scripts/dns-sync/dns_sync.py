@@ -153,30 +153,49 @@ def active_hostnames(client: docker.DockerClient) -> set[str]:
     return hostnames
 
 
-def reconcile(client: docker.DockerClient) -> None:
+def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
+    """One reconcile pass. Returns a summary dict (see the HTTP trigger docs).
+
+    force=True deletes every currently-absent hostname immediately, ignoring the
+    remaining grace period. It must only be set by the token-gated HTTP trigger,
+    never by the periodic pass.
+    """
     now = time.time()
     absent_since = load_absent_since()
     active = active_hostnames(client)
+    summary = {
+        "status": "ok",
+        "mode": "force" if force else "normal",
+        "dry_run": DRY_RUN,
+        "active": sorted(active),
+        "created": [],
+        "updated": [],
+        "unchanged": [],
+        "deleted": [],
+        "pending": [],
+    }
 
-    for hostname in active:
-        cf_upsert_record(hostname)
+    for hostname in sorted(active):
+        action = cf_upsert_record(hostname)
+        if action in ("created", "updated", "unchanged"):
+            summary[action].append(hostname)
         absent_since.pop(hostname, None)
 
-    for hostname in list(absent_since):
-        if hostname in active:
-            continue
-        first_absent = absent_since[hostname]
-        if now - first_absent >= DELETE_GRACE_SECONDS:
-            cf_delete_record(hostname)
+    for hostname in sorted(absent_since):
+        remaining = DELETE_GRACE_SECONDS - (now - absent_since[hostname])
+        if force or remaining <= 0:
+            if force and remaining > 0:
+                log.warning(
+                    "force: deleting %s with %ds of grace remaining", hostname, int(remaining)
+                )
+            if cf_delete_record(hostname) == "deleted":
+                summary["deleted"].append(hostname)
             del absent_since[hostname]
         else:
-            remaining = DELETE_GRACE_SECONDS - (now - first_absent)
             log.info("hostname %s absent, %ds until deletion", hostname, int(remaining))
-
-    # Any previously-tracked hostname that just went missing starts its grace period now.
-    known_hostnames = load_absent_since().keys() | active
-    for hostname in known_hostnames - active:
-        absent_since.setdefault(hostname, now)
+            summary["pending"].append(
+                {"hostname": hostname, "seconds_remaining": int(remaining)}
+            )
 
     if not DRY_RUN:
         save_absent_since(absent_since)
@@ -184,6 +203,7 @@ def reconcile(client: docker.DockerClient) -> None:
         "reconciliation pass complete, %d active, %d pending deletion",
         len(active), len(absent_since),
     )
+    return summary
 
 
 def handle_event(event: dict, client: docker.DockerClient) -> None:
