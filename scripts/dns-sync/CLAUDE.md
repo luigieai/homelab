@@ -222,7 +222,7 @@ docker compose run --rm dns-sync python dns_sync.py --dry-run
 
 ### Version
 
-`--version` prints `dns-sync 0.3.0` (the `__version__` constant in `dns_sync.py`) and exits 0. argparse handles it during argument parsing, so it never reaches Docker or the Cloudflare API. Bump `__version__` together with the image tag when you cut a new build.
+`--version` prints `dns-sync 0.3.1` (the `__version__` constant in `dns_sync.py`) and exits 0. argparse handles it during argument parsing, so it never reaches Docker or the Cloudflare API. Bump `__version__` together with the image tag when you cut a new build.
 
 ```bash
 python dns_sync.py --version

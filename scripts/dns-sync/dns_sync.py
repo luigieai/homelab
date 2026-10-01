@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, urlsplit
 import docker
 import requests
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 LABEL = "homelab.wan-expose"
 LABEL_TRUE = "true"

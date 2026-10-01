@@ -40,7 +40,7 @@ class VersionFlagTest(unittest.TestCase):
         with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as ctx:
             dns_sync.parse_args(["--version"])
         self.assertEqual(ctx.exception.code, 0)
-        self.assertEqual(out.getvalue(), "dns-sync 0.3.0\n")
+        self.assertEqual(out.getvalue(), "dns-sync 0.3.1\n")
 
     def test_version_does_not_touch_cloudflare(self):
         with mock.patch.object(dns_sync, "cf_session") as session, \
