@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import unittest
 from unittest import mock
@@ -18,6 +20,22 @@ class ParseArgsTest(unittest.TestCase):
 
     def test_flag_enables_dry_run(self):
         self.assertTrue(dns_sync.parse_args(["--dry-run"]).dry_run)
+
+
+class VersionFlagTest(unittest.TestCase):
+    def test_version_prints_and_exits_zero(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as ctx:
+            dns_sync.parse_args(["--version"])
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertEqual(out.getvalue(), "dns-sync 0.2.0\n")
+
+    def test_version_does_not_touch_cloudflare(self):
+        with mock.patch.object(dns_sync, "cf_session") as session, \
+                contextlib.redirect_stdout(io.StringIO()), \
+                self.assertRaises(SystemExit):
+            dns_sync.parse_args(["--version"])
+        self.assertEqual(session.method_calls, [])
 
 
 class DryRunRecordTest(unittest.TestCase):
