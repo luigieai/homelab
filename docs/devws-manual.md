@@ -89,6 +89,13 @@ identical: the plan, the reads of your repo, the `devws/…` branch, the `DEVWS-
 codes, the git guards and the transcript in `/root/devws/logs/<repo>-<ts>.exec.log`. `devws status`
 prints which executor is active.
 
+`devws run` now ends with a review: Claude (sonnet, read-only, no Write/Edit tools) checks the branch
+against the plan, reads the diff, re-runs the plan's `## Tests` commands itself rather than trusting the
+executor's log, and ends with `DEVWS-REVIEW: PASS|CHANGES|BLOCKED`. Exit `8` means the reviewer wants
+changes or could not verify (the branch still exists - read `/root/devws/logs/<repo>-<ts>.review.log`);
+exit `9` means it produced no verdict. Re-run it any time with
+`devws review . /root/devws/plans/<file>.md`, or skip it inside `run` with `DEVWS_SKIP_REVIEW=1`.
+
 ### C. Ask Hermes (this chat)
 
 Say **what** and **where**, e.g. *"in twitch-mv, add rate limiting to the /login route"*. Hermes will:
@@ -239,7 +246,7 @@ dsh --profile headless "find every place we hardcode the domain and list the fil
 
 ---
 
-## 10. Exit codes (memorise these four)
+## 10. Exit codes
 
 | Code | Meaning |
 | --- | --- |
@@ -250,6 +257,8 @@ dsh --profile headless "find every place we hardcode the domain and list the fil
 | `5` | dirty working tree, refused |
 | `6` | executor reported `BLOCKED` |
 | `7` | key/env file missing |
+| `8` | reviewer asked for CHANGES, or could not verify (BLOCKED) - the branch exists, read the review log |
+| `9` | review inconclusive (no DEVWS-REVIEW verdict reached) |
 
 ---
 
@@ -257,7 +266,7 @@ dsh --profile headless "find every place we hardcode the domain and list the fil
 
 ```bash
 devws status                     # versions + keys + repo state, always start here
-devws selftest                   # 22 assertions, ~1.5 min
+devws selftest                   # every slice, ~2-3 min (the count drifts; do not restore a number)
 devws selftest --only cce        # fast check that the executor + memory still work
 ```
 
@@ -281,7 +290,8 @@ devws status                                    # where am I: versions, keys, di
 devws run . "<request>"                         # plan + execute
 devws plan . "<request>"                        # plan only → prints the .md path
 devws exec . /root/devws/plans/<file>.md        # execute an existing plan
-devws selftest [--only cce|plan|exec|guards]    # prove it still works
+devws review . /root/devws/plans/<file>.md      # re-check a branch against its plan, read-only
+devws selftest [--only <case>]                  # prove it still works (slices: status|plan|exec|review)
 
 # after a run
 git log --oneline -5 && git diff master..HEAD   # review
