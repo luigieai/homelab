@@ -76,6 +76,19 @@ devws exec . /root/devws/plans/homelab-20260929-053012-add-a-make-target-that.md
 
 Long runs: put it in tmux (`tmux new -s devws`) so a dropped VSCode/SSH connection doesn't kill it.
 
+By default the executor is `dsh`. To run the exec half as **Claude Code** instead — same DeepSeek key,
+every subagent it spawns forced onto the cheap model — prefix the command:
+
+    DEVWS_EXECUTOR=claude devws exec . /root/devws/plans/<plan>.md
+    DEVWS_EXECUTOR=claude devws run . "add a make target that validates every compose file"
+
+What changes: Claude Code talks to `https://api.deepseek.com/anthropic` (DeepSeek serves the Anthropic
+API format) using the harness key from `automation.env`; the main loop runs on `deepseek-flash[1m]` and
+every subagent is pinned to `deepseek-flash` by `CLAUDE_CODE_SUBAGENT_MODEL(_FORCE)`. Everything else is
+identical: the plan, the reads of your repo, the `devws/…` branch, the `DEVWS-EXIT` sentinel, the exit
+codes, the git guards and the transcript in `/root/devws/logs/<repo>-<ts>.exec.log`. `devws status`
+prints which executor is active.
+
 ### C. Ask Hermes (this chat)
 
 Say **what** and **where**, e.g. *"in twitch-mv, add rate limiting to the /login route"*. Hermes will:
@@ -177,7 +190,7 @@ cce search "traefik labels" --top-k 5
 
 | Key | Used by | Where |
 | --- | --- | --- |
-| DeepSeek (harness) | `dsh` everywhere on CT 300 — interactive *and* automated | `/root/.dsh/.env`, `/root/.config/devws/automation.env` |
+| DeepSeek (harness) | `dsh` and the Claude Code executor (`DEVWS_EXECUTOR=claude`) on CT 300 — interactive *and* automated | `/root/.dsh/.env`, `/root/.config/devws/automation.env` |
 | DeepSeek (Hermes) | this chat's agent, on CT 301 | Hermes profile `.env` |
 | Anthropic (Claude Pro OAuth) | the planner and your VSCode sessions | `~/.claude/.credentials.json` |
 
