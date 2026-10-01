@@ -130,3 +130,25 @@ event streaming (read-only is fine — no writes are made to Docker itself).
 Run against a real Cloudflare zone carefully: this script creates and
 deletes real public DNS records. Prefer testing against a throwaway
 subdomain/hostname before pointing it at a real service like Authentik.
+
+### Dry run
+
+`--dry-run` runs one reconcile pass, logs each record change it would make
+(`[dry-run] would upsert ...` / `[dry-run] would delete ...`), and exits. It
+makes **no Cloudflare API call** and does not write the state file, so grace
+timers are untouched. It still reads the Docker socket. Because it never
+queries Cloudflare, it cannot tell create from update from no-op: every
+active hostname is reported as "would upsert", and only hostnames already
+past `DELETE_GRACE_SECONDS` are reported as "would delete".
+
+```bash
+# from the host (needs the three required env vars and Docker socket access)
+python dns_sync.py --dry-run
+
+# against the deployed config
+cd docker/platform/dns-sync/
+docker compose run --rm dns-sync python dns_sync.py --dry-run
+```
+
+Unit tests (stdlib `unittest`, run from this directory):
+`python3 -m unittest test_dns_sync -v`
