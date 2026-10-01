@@ -16,6 +16,7 @@ crash-loop, or missed event wiping public DNS. Absence is tracked in a small
 state file so the grace period survives a dns-sync restart too.
 """
 
+import argparse
 import json
 import logging
 import os
@@ -40,6 +41,7 @@ RECORD_PROXIED = os.environ.get("DNS_RECORD_PROXIED", "false").lower() == "true"
 RECONCILE_INTERVAL_SECONDS = int(os.environ.get("RECONCILE_INTERVAL_SECONDS", "300"))
 DELETE_GRACE_SECONDS = int(os.environ.get("DELETE_GRACE_SECONDS", str(24 * 60 * 60)))
 STATE_FILE = os.environ.get("STATE_FILE", "/state/absent-since.json")
+DRY_RUN = False  # set by main(); when True, no Cloudflare API call or state write is made
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("dns-sync")
@@ -88,6 +90,12 @@ def cf_find_record(hostname: str) -> dict | None:
 
 
 def cf_upsert_record(hostname: str) -> None:
+    if DRY_RUN:
+        log.info(
+            "[dry-run] would upsert DNS record %s -> %s (%s, proxied=%s)",
+            hostname, RECORD_TARGET, RECORD_TYPE, RECORD_PROXIED,
+        )
+        return
     existing = cf_find_record(hostname)
     payload = {
         "type": RECORD_TYPE,
@@ -111,6 +119,12 @@ def cf_upsert_record(hostname: str) -> None:
 
 
 def cf_delete_record(hostname: str) -> None:
+    if DRY_RUN:
+        log.info(
+            "[dry-run] would delete DNS record %s (absent >= %ds)",
+            hostname, DELETE_GRACE_SECONDS,
+        )
+        return
     existing = cf_find_record(hostname)
     if not existing:
         return
@@ -158,7 +172,8 @@ def reconcile(client: docker.DockerClient) -> None:
     for hostname in known_hostnames - active:
         absent_since.setdefault(hostname, now)
 
-    save_absent_since(absent_since)
+    if not DRY_RUN:
+        save_absent_since(absent_since)
     log.info(
         "reconciliation pass complete, %d active, %d pending deletion",
         len(active), len(absent_since),
@@ -189,9 +204,26 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
     # DELETE_GRACE_SECONDS, to avoid wiping DNS on a transient restart.
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="log the record changes one reconcile pass would make, then exit "
+             "without calling the Cloudflare API or writing the state file",
+    )
+    return parser.parse_args(argv)
+
+
+def main(dry_run: bool = False) -> None:
+    global DRY_RUN
+    DRY_RUN = dry_run
+
     client = docker.from_env()
     reconcile(client)
+    if DRY_RUN:
+        log.info("[dry-run] done, exiting without watching events")
+        return
 
     last_reconcile = time.monotonic()
     for event in client.events(decode=True, filters={"type": "container"}):
@@ -210,6 +242,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     try:
-        main()
+        main(dry_run=parse_args().dry_run)
     except KeyboardInterrupt:
         sys.exit(0)
