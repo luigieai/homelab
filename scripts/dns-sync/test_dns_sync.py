@@ -1,8 +1,16 @@
 import contextlib
 import io
+import json
 import os
+import tempfile
+import threading
+import time
 import unittest
+import urllib.error
+import urllib.request
 from unittest import mock
+
+import requests
 
 os.environ.setdefault("CLOUDFLARE_API_TOKEN", "test-token")
 os.environ.setdefault("CLOUDFLARE_ZONE_ID", "test-zone")
@@ -91,6 +99,55 @@ class DryRunMainTest(unittest.TestCase):
             dns_sync.main(dry_run=True)
         reconcile.assert_called_once_with(from_env.return_value)
         from_env.return_value.events.assert_not_called()
+
+
+class RecordActionTest(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(mock.patch.object(dns_sync, "DRY_RUN", False))
+        self.session = self.enterContext(mock.patch.object(dns_sync, "cf_session"))
+
+    def _existing(self, **overrides):
+        record = {
+            "id": "rec1",
+            "content": dns_sync.RECORD_TARGET,
+            "proxied": dns_sync.RECORD_PROXIED,
+        }
+        record.update(overrides)
+        self.session.get.return_value.json.return_value = {"result": [record]}
+
+    def test_upsert_reports_created(self):
+        self.session.get.return_value.json.return_value = {"result": []}
+        self.assertEqual(dns_sync.cf_upsert_record(HOST_NEW), "created")
+
+    def test_upsert_reports_updated(self):
+        self._existing(content="other.example.com")
+        self.assertEqual(dns_sync.cf_upsert_record(HOST_NEW), "updated")
+        self.session.put.assert_called_once()
+
+    def test_upsert_reports_unchanged(self):
+        self._existing()
+        self.assertEqual(dns_sync.cf_upsert_record(HOST_NEW), "unchanged")
+        self.session.put.assert_not_called()
+        self.session.post.assert_not_called()
+
+    def test_upsert_dry_run_reports_would_upsert(self):
+        with mock.patch.object(dns_sync, "DRY_RUN", True):
+            self.assertEqual(dns_sync.cf_upsert_record(HOST_NEW), "would-upsert")
+
+    def test_delete_reports_deleted(self):
+        self._existing()
+        self.assertEqual(dns_sync.cf_delete_record(HOST_OLD), "deleted")
+        self.session.delete.assert_called_once()
+
+    def test_delete_reports_absent_when_no_record(self):
+        self.session.get.return_value.json.return_value = {"result": []}
+        self.assertEqual(dns_sync.cf_delete_record(HOST_OLD), "absent")
+        self.session.delete.assert_not_called()
+
+    def test_delete_dry_run_reports_would_delete(self):
+        with mock.patch.object(dns_sync, "DRY_RUN", True):
+            self.assertEqual(dns_sync.cf_delete_record(HOST_OLD), "would-delete")
+        self.session.delete.assert_not_called()
 
 
 if __name__ == "__main__":

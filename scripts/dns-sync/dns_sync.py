@@ -91,13 +91,14 @@ def cf_find_record(hostname: str) -> dict | None:
     return records[0] if records else None
 
 
-def cf_upsert_record(hostname: str) -> None:
+def cf_upsert_record(hostname: str) -> str:
+    """Returns what was done: created | updated | unchanged | would-upsert (dry run)."""
     if DRY_RUN:
         log.info(
             "[dry-run] would upsert DNS record %s -> %s (%s, proxied=%s)",
             hostname, RECORD_TARGET, RECORD_TYPE, RECORD_PROXIED,
         )
-        return
+        return "would-upsert"
     existing = cf_find_record(hostname)
     payload = {
         "type": RECORD_TYPE,
@@ -108,31 +109,34 @@ def cf_upsert_record(hostname: str) -> None:
     }
     if existing:
         if existing["content"] == RECORD_TARGET and existing["proxied"] == RECORD_PROXIED:
-            return
+            return "unchanged"
         resp = cf_session.put(
             f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records/{existing['id']}", json=payload
         )
         resp.raise_for_status()
         log.info("updated DNS record %s -> %s", hostname, RECORD_TARGET)
-    else:
-        resp = cf_session.post(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records", json=payload)
-        resp.raise_for_status()
-        log.info("created DNS record %s -> %s", hostname, RECORD_TARGET)
+        return "updated"
+    resp = cf_session.post(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records", json=payload)
+    resp.raise_for_status()
+    log.info("created DNS record %s -> %s", hostname, RECORD_TARGET)
+    return "created"
 
 
-def cf_delete_record(hostname: str) -> None:
+def cf_delete_record(hostname: str) -> str:
+    """Returns what was done: deleted | absent (no such record) | would-delete (dry run)."""
     if DRY_RUN:
         log.info(
             "[dry-run] would delete DNS record %s (absent >= %ds)",
             hostname, DELETE_GRACE_SECONDS,
         )
-        return
+        return "would-delete"
     existing = cf_find_record(hostname)
     if not existing:
-        return
+        return "absent"
     resp = cf_session.delete(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records/{existing['id']}")
     resp.raise_for_status()
     log.info("deleted DNS record %s (absent >= %ds)", hostname, DELETE_GRACE_SECONDS)
+    return "deleted"
 
 
 def active_hostnames(client: docker.DockerClient) -> set[str]:
