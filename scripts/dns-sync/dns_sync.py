@@ -14,18 +14,29 @@ been continuously absent (no running labeled container serving it) for
 DELETE_GRACE_SECONDS (default 24h). This guards against a transient restart,
 crash-loop, or missed event wiping public DNS. Absence is tracked in a small
 state file so the grace period survives a dns-sync restart too.
+
+An optional HTTP trigger (POST/GET /reconcile, GET /healthz; see CLAUDE.md,
+"Manual trigger (HTTP webhook)") runs one reconcile pass on demand. It only
+starts when WEBHOOK_TOKEN is set. `force` mode, which deletes absent hostnames
+ahead of the grace period, is reachable only through it, never periodically.
 """
 
 import argparse
+import hmac
 import json
 import logging
 import os
 import re
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 import docker
 import requests
+
+__version__ = "0.3.0"
 
 LABEL = "homelab.wan-expose"
 LABEL_TRUE = "true"
@@ -42,6 +53,12 @@ RECONCILE_INTERVAL_SECONDS = int(os.environ.get("RECONCILE_INTERVAL_SECONDS", "3
 DELETE_GRACE_SECONDS = int(os.environ.get("DELETE_GRACE_SECONDS", str(24 * 60 * 60)))
 STATE_FILE = os.environ.get("STATE_FILE", "/state/absent-since.json")
 DRY_RUN = False  # set by main(); when True, no Cloudflare API call or state write is made
+RECONCILE_LOCK = threading.Lock()  # serialises every reconcile pass (state file is read/modify/write)
+WEBHOOK_TOKEN = os.environ.get("WEBHOOK_TOKEN", "").strip()  # empty -> HTTP listener disabled
+HTTP_BIND = os.environ.get("HTTP_BIND", "0.0.0.0")
+HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
+HTTP_MAX_BODY_BYTES = 64 * 1024
+HTTP_ROUTES = {"/reconcile": ("GET", "POST"), "/healthz": ("GET",)}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("dns-sync")
@@ -89,13 +106,14 @@ def cf_find_record(hostname: str) -> dict | None:
     return records[0] if records else None
 
 
-def cf_upsert_record(hostname: str) -> None:
+def cf_upsert_record(hostname: str) -> str:
+    """Returns what was done: created | updated | unchanged | would-upsert (dry run)."""
     if DRY_RUN:
         log.info(
             "[dry-run] would upsert DNS record %s -> %s (%s, proxied=%s)",
             hostname, RECORD_TARGET, RECORD_TYPE, RECORD_PROXIED,
         )
-        return
+        return "would-upsert"
     existing = cf_find_record(hostname)
     payload = {
         "type": RECORD_TYPE,
@@ -106,31 +124,34 @@ def cf_upsert_record(hostname: str) -> None:
     }
     if existing:
         if existing["content"] == RECORD_TARGET and existing["proxied"] == RECORD_PROXIED:
-            return
+            return "unchanged"
         resp = cf_session.put(
             f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records/{existing['id']}", json=payload
         )
         resp.raise_for_status()
         log.info("updated DNS record %s -> %s", hostname, RECORD_TARGET)
-    else:
-        resp = cf_session.post(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records", json=payload)
-        resp.raise_for_status()
-        log.info("created DNS record %s -> %s", hostname, RECORD_TARGET)
+        return "updated"
+    resp = cf_session.post(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records", json=payload)
+    resp.raise_for_status()
+    log.info("created DNS record %s -> %s", hostname, RECORD_TARGET)
+    return "created"
 
 
-def cf_delete_record(hostname: str) -> None:
+def cf_delete_record(hostname: str) -> str:
+    """Returns what was done: deleted | absent (no such record) | would-delete (dry run)."""
     if DRY_RUN:
         log.info(
             "[dry-run] would delete DNS record %s (absent >= %ds)",
             hostname, DELETE_GRACE_SECONDS,
         )
-        return
+        return "would-delete"
     existing = cf_find_record(hostname)
     if not existing:
-        return
+        return "absent"
     resp = cf_session.delete(f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records/{existing['id']}")
     resp.raise_for_status()
     log.info("deleted DNS record %s (absent >= %ds)", hostname, DELETE_GRACE_SECONDS)
+    return "deleted"
 
 
 def active_hostnames(client: docker.DockerClient) -> set[str]:
@@ -147,30 +168,49 @@ def active_hostnames(client: docker.DockerClient) -> set[str]:
     return hostnames
 
 
-def reconcile(client: docker.DockerClient) -> None:
+def reconcile(client: docker.DockerClient, force: bool = False) -> dict:
+    """One reconcile pass. Returns a summary dict (see the HTTP trigger docs).
+
+    force=True deletes every currently-absent hostname immediately, ignoring the
+    remaining grace period. It must only be set by the token-gated HTTP trigger,
+    never by the periodic pass.
+    """
     now = time.time()
     absent_since = load_absent_since()
     active = active_hostnames(client)
+    summary = {
+        "status": "ok",
+        "mode": "force" if force else "normal",
+        "dry_run": DRY_RUN,
+        "active": sorted(active),
+        "created": [],
+        "updated": [],
+        "unchanged": [],
+        "deleted": [],
+        "pending": [],
+    }
 
-    for hostname in active:
-        cf_upsert_record(hostname)
+    for hostname in sorted(active):
+        action = cf_upsert_record(hostname)
+        if action in ("created", "updated", "unchanged"):
+            summary[action].append(hostname)
         absent_since.pop(hostname, None)
 
-    for hostname in list(absent_since):
-        if hostname in active:
-            continue
-        first_absent = absent_since[hostname]
-        if now - first_absent >= DELETE_GRACE_SECONDS:
-            cf_delete_record(hostname)
+    for hostname in sorted(absent_since):
+        remaining = DELETE_GRACE_SECONDS - (now - absent_since[hostname])
+        if force or remaining <= 0:
+            if force and remaining > 0:
+                log.warning(
+                    "force: deleting %s with %ds of grace remaining", hostname, int(remaining)
+                )
+            if cf_delete_record(hostname) == "deleted":
+                summary["deleted"].append(hostname)
             del absent_since[hostname]
         else:
-            remaining = DELETE_GRACE_SECONDS - (now - first_absent)
             log.info("hostname %s absent, %ds until deletion", hostname, int(remaining))
-
-    # Any previously-tracked hostname that just went missing starts its grace period now.
-    known_hostnames = load_absent_since().keys() | active
-    for hostname in known_hostnames - active:
-        absent_since.setdefault(hostname, now)
+            summary["pending"].append(
+                {"hostname": hostname, "seconds_remaining": int(remaining)}
+            )
 
     if not DRY_RUN:
         save_absent_since(absent_since)
@@ -178,6 +218,25 @@ def reconcile(client: docker.DockerClient) -> None:
         "reconciliation pass complete, %d active, %d pending deletion",
         len(active), len(absent_since),
     )
+    return summary
+
+
+def locked_reconcile(
+    client: docker.DockerClient, force: bool = False, blocking: bool = True
+) -> dict | None:
+    """reconcile() under RECONCILE_LOCK. Returns None if blocking=False and the lock is held."""
+    if not RECONCILE_LOCK.acquire(blocking=blocking):
+        return None
+    try:
+        return reconcile(client, force=force)
+    finally:
+        RECONCILE_LOCK.release()
+
+
+def periodic_reconcile(client: docker.DockerClient) -> None:
+    # Never forced; never waits for an in-flight pass.
+    if locked_reconcile(client, blocking=False) is None:
+        log.info("skipped, reconcile already running")
 
 
 def handle_event(event: dict, client: docker.DockerClient) -> None:
@@ -191,21 +250,132 @@ def handle_event(event: dict, client: docker.DockerClient) -> None:
 
     status = event.get("status")
     if status == "start":
-        absent_since = load_absent_since()
-        changed = False
-        for hostname in hostnames:
-            cf_upsert_record(hostname)
-            if absent_since.pop(hostname, None) is not None:
-                changed = True
-        if changed:
-            save_absent_since(absent_since)
+        with RECONCILE_LOCK:  # same state file as reconcile(); never interleave
+            absent_since = load_absent_since()
+            changed = False
+            for hostname in hostnames:
+                cf_upsert_record(hostname)
+                if absent_since.pop(hostname, None) is not None:
+                    changed = True
+            if changed:
+                save_absent_since(absent_since)
     # Deliberately no action on die/stop/destroy here — deletion only happens
     # via reconcile() after the hostname has been continuously absent for
     # DELETE_GRACE_SECONDS, to avoid wiping DNS on a transient restart.
 
 
+def make_handler(token: str, reconcile_fn):
+    """Request handler class. reconcile_fn(force=bool) must return the summary dict."""
+    token_bytes = token.encode()
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "dns-sync"
+
+        def log_message(self, fmt, *args):
+            log.info("http %s - %s", self.address_string(), fmt % args)
+
+        def _send(self, status, payload, headers=None):
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _error(self, status, message, headers=None):
+            self._send(status, {"status": "error", "error": message}, headers)
+
+        def _authorized(self):
+            scheme, _, supplied = self.headers.get("Authorization", "").partition(" ")
+            return scheme == "Bearer" and hmac.compare_digest(supplied.encode(), token_bytes)
+
+        def _read_force(self, query):
+            force = False
+            raw = query.get("force", [None])[0]
+            if raw is not None:
+                if raw.lower() in ("1", "true"):
+                    force = True
+                elif raw.lower() not in ("0", "false", ""):
+                    raise ValueError("query param force must be 1, true, 0 or false")
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                raise ValueError("invalid Content-Length")
+            if length < 0 or length > HTTP_MAX_BODY_BYTES:
+                raise ValueError("invalid body size")
+            if length:
+                try:
+                    body = json.loads(self.rfile.read(length))
+                except ValueError:
+                    raise ValueError("malformed JSON body")
+                if not isinstance(body, dict):
+                    raise ValueError("JSON body must be an object")
+                value = body.get("force", False)
+                if not isinstance(value, bool):
+                    raise ValueError('"force" must be a boolean')
+                force = force or value
+            return force
+
+        def _dispatch(self):
+            url = urlsplit(self.path)
+            allowed = HTTP_ROUTES.get(url.path)
+            if allowed is None:
+                return self._error(404, "not found")
+            if self.command not in allowed:
+                return self._error(405, "method not allowed", {"Allow": ", ".join(allowed)})
+            if url.path == "/healthz":
+                return self._send(200, {"status": "ok"})
+            if not self._authorized():
+                return self._error(401, "unauthorized", {"WWW-Authenticate": "Bearer"})
+            try:
+                force = self._read_force(parse_qs(url.query, keep_blank_values=True))
+            except ValueError as exc:
+                return self._error(400, str(exc))
+            if force:
+                log.warning("force reconcile requested via HTTP from %s", self.address_string())
+            try:
+                summary = reconcile_fn(force=force)
+            except requests.HTTPError as exc:
+                log.error("Cloudflare API error during HTTP-triggered reconcile: %s", exc)
+                return self._error(502, "Cloudflare API error")
+            except Exception:
+                log.exception("HTTP-triggered reconcile failed")
+                return self._error(500, "internal error")
+            log.info("HTTP-triggered reconcile finished (force=%s)", force)
+            self._send(200, summary)
+
+        do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _dispatch
+
+    return Handler
+
+
+def build_server(bind: str, port: int, token: str, reconcile_fn) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer((bind, port), make_handler(token, reconcile_fn))
+
+
+def start_http_server(client: docker.DockerClient) -> ThreadingHTTPServer | None:
+    """Starts the trigger endpoint in a daemon thread. Fails closed without WEBHOOK_TOKEN."""
+    if not WEBHOOK_TOKEN:
+        log.error("WEBHOOK_TOKEN is not set, HTTP trigger endpoint disabled")
+        return None
+    try:
+        server = build_server(
+            HTTP_BIND, HTTP_PORT, WEBHOOK_TOKEN,
+            lambda force: locked_reconcile(client, force=force),
+        )
+    except OSError as exc:
+        log.error("cannot start HTTP trigger endpoint on %s:%d: %s", HTTP_BIND, HTTP_PORT, exc)
+        return None
+    threading.Thread(target=server.serve_forever, name="http-trigger", daemon=True).start()
+    log.info("HTTP trigger endpoint listening on %s:%d", HTTP_BIND, HTTP_PORT)
+    return server
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("--version", action="version", version=f"dns-sync {__version__}")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -225,6 +395,7 @@ def main(dry_run: bool = False) -> None:
         log.info("[dry-run] done, exiting without watching events")
         return
 
+    start_http_server(client)
     last_reconcile = time.monotonic()
     for event in client.events(decode=True, filters={"type": "container"}):
         try:
@@ -234,7 +405,7 @@ def main(dry_run: bool = False) -> None:
 
         if time.monotonic() - last_reconcile > RECONCILE_INTERVAL_SECONDS:
             try:
-                reconcile(client)
+                periodic_reconcile(client)
             except requests.HTTPError as exc:
                 log.error("Cloudflare API error during reconciliation: %s", exc)
             last_reconcile = time.monotonic()

@@ -17,6 +17,10 @@ services:
       DNS_RECORD_PROXIED: ${DNS_RECORD_PROXIED:-false}
       RECONCILE_INTERVAL_SECONDS: ${RECONCILE_INTERVAL_SECONDS:-300}
       DELETE_GRACE_SECONDS: ${DELETE_GRACE_SECONDS:-86400}
+      WEBHOOK_TOKEN: ${WEBHOOK_TOKEN}
+    ports:
+      # HTTP trigger (POST /reconcile), LAN only. No Traefik router on purpose.
+      - "${DNS_SYNC_HTTP_PORT:-8080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dns_sync_state:/state

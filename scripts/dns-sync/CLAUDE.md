@@ -31,6 +31,8 @@ see "Build and deploy a new version" below.
    `DELETE_GRACE_SECONDS`** (default 24h) is its Cloudflare record actually
    deleted. If the container comes back before the grace period elapses,
    the pending deletion is cancelled and the timer resets.
+4. Optionally serves an authenticated HTTP trigger that runs one reconcile
+   pass on demand — see "Manual trigger (HTTP webhook)" below.
 
 This grace period is deliberate: deleting a public DNS record immediately on
 `stop`/`die` would wipe WAN access on a container restart, brief
@@ -92,6 +94,10 @@ to actually reach the service.
   `RECONCILE_INTERVAL_SECONDS` (default `300`), `DELETE_GRACE_SECONDS`
   (default `86400`, i.e. 24h), `STATE_FILE` (default `/state/absent-since.json`)
   — optional overrides.
+- `WEBHOOK_TOKEN` — shared secret for the HTTP trigger. **Required to enable
+  the listener**; unset/empty means the listener does not start (fail closed,
+  one ERROR log line) while the watcher and periodic reconcile run as usual.
+  `HTTP_BIND` (default `0.0.0.0`) and `HTTP_PORT` (default `8080`) — optional.
 
 ## State file
 
@@ -99,10 +105,74 @@ to actually reach the service.
 `docker/platform/dns-sync/compose.yaml`) maps hostname → unix timestamp of
 when it was first observed absent. It must persist across dns-sync
 container restarts, otherwise the grace period silently resets to zero
-every deploy and the safety guarantee is lost. If you ever need to force an
-immediate deletion, editing/clearing this file (or waiting out the grace
-period) is the supported way — don't add a "force delete" code path without
-thinking through why the grace period exists first.
+every deploy and the safety guarantee is lost. To delete a hostname ahead of schedule, use the explicit, token-gated
+`force` mode of the HTTP trigger (see "Manual trigger (HTTP webhook)") —
+it is never applied by the periodic pass or by container lifecycle events.
+Editing/clearing this file by hand also works. Don't add any
+delete-on-stop/die/destroy path: the grace period exists so a restart or
+crash-loop can't wipe public DNS.
+
+## Manual trigger (HTTP webhook)
+
+Runs one reconcile pass on demand (e.g. as a Komodo follow-up after a
+deploy/restart/delete) instead of waiting `RECONCILE_INTERVAL_SECONDS`.
+Stdlib `http.server`, no extra dependency. Published on the host as
+`${DNS_SYNC_HTTP_PORT:-8080}` (LAN only; no Traefik router).
+
+| Endpoint | Auth | Behaviour |
+|---|---|---|
+| `POST /reconcile` | Bearer | One pass. Optional JSON body `{"force": true}` or query `?force=1`. |
+| `GET /reconcile` | Bearer | Same, no body. |
+| `GET /healthz` | none | `200 {"status":"ok"}` (liveness). |
+
+Auth is `Authorization: Bearer <WEBHOOK_TOKEN>` (constant-time compare).
+Missing/wrong token gives `401`; unknown path `404`; wrong method on a known
+path `405`; malformed body `400`. Every error body is
+`{"status":"error","error":"..."}`.
+
+Env vars: `WEBHOOK_TOKEN` (required to enable), `HTTP_BIND` (default
+`0.0.0.0`), `HTTP_PORT` (default `8080`). With no `WEBHOOK_TOKEN` the
+listener does not start; everything else is unchanged.
+
+```bash
+TOKEN=...   # same value as WEBHOOK_TOKEN
+
+curl -fsS http://localhost:8080/healthz
+
+# normal pass: creates/updates records, deletes only what is past the grace period
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/reconcile
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8080/reconcile
+
+# force pass: see warning below
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"force": true}' http://localhost:8080/reconcile
+```
+
+Response (`"mode":"force"` in force mode):
+
+```json
+{"status":"ok","mode":"normal","dry_run":false,"active":["a.lab.marioverde.com.br"],
+ "created":[],"updated":[],"unchanged":["a.lab.marioverde.com.br"],"deleted":[],
+ "pending":[{"hostname":"gone.lab.marioverde.com.br","seconds_remaining":4231}]}
+```
+
+`pending` lists absent hostnames still inside `DELETE_GRACE_SECONDS`.
+
+> **WARNING — force mode edits PUBLIC DNS.** `force` deletes every
+> currently-absent hostname's Cloudflare record immediately, ignoring the
+> remaining grace period, and drops it from the state file. It is explicit,
+> token-gated, never a default, and never applied by the periodic pass.
+> Use only when you are sure the hostname is really gone.
+
+Concurrency: one lock is shared by HTTP and periodic passes, so two
+reconciles never interleave. A periodic pass that finds the lock held logs
+`skipped, reconcile already running`; an HTTP call waits for the running pass.
+
+Komodo Procedure example (Execute Command / shell stage):
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/reconcile
+```
 
 ## Build and deploy a new version
 
@@ -139,7 +209,7 @@ makes **no Cloudflare API call** and does not write the state file, so grace
 timers are untouched. It still reads the Docker socket. Because it never
 queries Cloudflare, it cannot tell create from update from no-op: every
 active hostname is reported as "would upsert", and only hostnames already
-past `DELETE_GRACE_SECONDS` are reported as "would delete".
+past `DELETE_GRACE_SECONDS` are reported as "would delete". `--dry-run` is CLI-only; it is not reachable over HTTP.
 
 ```bash
 # from the host (needs the three required env vars and Docker socket access)
@@ -148,6 +218,14 @@ python dns_sync.py --dry-run
 # against the deployed config
 cd docker/platform/dns-sync/
 docker compose run --rm dns-sync python dns_sync.py --dry-run
+```
+
+### Version
+
+`--version` prints `dns-sync 0.3.0` (the `__version__` constant in `dns_sync.py`) and exits 0. argparse handles it during argument parsing, so it never reaches Docker or the Cloudflare API. Bump `__version__` together with the image tag when you cut a new build.
+
+```bash
+python dns_sync.py --version
 ```
 
 Unit tests (stdlib `unittest`, run from this directory):
