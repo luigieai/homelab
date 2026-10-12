@@ -1,0 +1,164 @@
+groups:
+  - name: host
+    rules:
+      - alert: HostDiskFillingUp
+        expr: |
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|autofs"} /
+               node_filesystem_size_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|autofs"}) * 100 > 85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full"
+          description: "Free space is below 15%. Check /var/lib/docker, old backups and LVM usage."
+
+      - alert: HostMemoryPressure
+        expr: node_memory_MemAvailable_bytes < 1073741824
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} has {{ printf \"%.2f\" (div $value 1073741824) }} GiB available RAM"
+
+      - alert: HostSwapInUse
+        expr: (1 - node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes) * 100 > 60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} swap usage is {{ printf \"%.1f\" $value }}% (memory pressure)"
+
+      - alert: HostCpuSaturation
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} CPU is {{ printf \"%.1f\" $value }}% busy for 10m"
+
+      - alert: HostLoadHigh
+        expr: node_load1 / count by (instance) (node_cpu_seconds_total{mode="idle"}) > 1.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} load1 is {{ printf \"%.2f\" $value }}x the core count"
+
+  - name: proxmox
+    rules:
+      - alert: PveExporterDown
+        expr: up{job="pve"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "prometheus-pve-exporter is down — all Proxmox metrics are stale"
+
+      - alert: PveNodeApiDown
+        expr: pve_up{id="node/mirage"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox node mirage is not reporting through the API"
+
+      # Guests that are intentionally stopped are excluded here. CT 100 (zomboid)
+      # and CT 501 (anacast) are stopped on purpose — keep this regex updated when
+      # you decommission something, otherwise you will get a warning each time it
+      # is powered off.
+      - alert: PveGuestDown
+        expr: pve_up{id=~"lxc/.+|qemu/.+", id!~"lxc/100|lxc/501"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Guest {{ $labels.id }} is not running"
+
+      - alert: PveNodeCpuHigh
+        expr: pve_cpu_usage_ratio{id="node/mirage"} > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mirage CPU at {{ printf \"%.0f\" (mul $value 100) }}% for 15m"
+
+      - alert: PveNodeMemoryHigh
+        expr: (pve_memory_usage_bytes{id="node/mirage"} / pve_memory_size_bytes{id="node/mirage"}) > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mirage RAM at {{ printf \"%.0f\" (mul $value 100) }}% of {{ printf \"%.1f\" (div (pve_memory_size_bytes{id=\"node/mirage\"}) 1073741824) }} GiB"
+
+      - alert: PveGuestMemoryHigh
+        expr: (pve_memory_usage_bytes{id=~"lxc/.+|qemu/.+"} / pve_memory_size_bytes{id=~"lxc/.+|qemu/.+"}) > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Guest {{ $labels.id }} is using {{ printf \"%.0f\" (mul $value 100) }}% of its memory limit"
+
+      - alert: PveGuestDiskHigh
+        expr: (pve_disk_usage_bytes{id=~"lxc/.+|qemu/.+"} / pve_disk_size_bytes{id=~"lxc/.+|qemu/.+"}) > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Guest {{ $labels.id }} disk is {{ printf \"%.0f\" (mul $value 100) }}% full"
+
+      - alert: PveStorageFillingUp
+        expr: (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"}) > 0.9
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PVE storage {{ $labels.id }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+
+  - name: containers
+    rules:
+      # cAdvisor keeps reporting container_last_seen for containers that stop, so
+      # "not seen for 5 minutes" means the container died or was removed.
+      # To only alert on business-critical containers, append
+      # name=~"traefik-traefik|komodo-core-1|iam-authentik-server-1|forgejo-forgejo-1|registry-registry-1"
+      # to the expression below.
+      - alert: ContainerMissing
+        expr: (time() - container_last_seen{name!="", image!=""}) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} has not been seen for 5+ minutes"
+
+      - alert: ContainerRestarting
+        expr: changes(container_start_time_seconds{name!="", image!=""}[1h]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restarted {{ printf \"%.0f\" $value }} times in the last hour"
+
+      - alert: ContainerMemoryHigh
+        expr: |
+          (container_memory_working_set_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) > 0.9
+          and container_spec_memory_limit_bytes{name!=""} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is above 90% of its memory limit"
+
+      - alert: MetricsCollectorDown
+        expr: up{job=~"node|cadvisor|node-mirage"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} collector {{ $labels.instance }} is unreachable"
+
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager is down — alerts are being evaluated but not delivered"

@@ -1,0 +1,150 @@
+###################################
+# MONITORING                      #
+###################################
+## Metrics (Prometheus), alerting (Alertmanager -> Telegram), dashboards (Grafana)
+## and logs (Alloy -> Loki) for the Proxmox node `mirage`, its LXC/VM guests and
+## the Docker containers on docker01.
+##
+## Secrets: PVE token + Grafana admin come from .env (Komodo stack environment).
+## The Telegram bot token / chat id are NOT in this repo (it is public) — they are
+## read from /etc/komodo/secrets/ on docker01. See README.md.
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROM_RETENTION:-30d}
+      - --storage.tsdb.retention.size=${PROM_RETENTION_SIZE:-8GB}
+      - --web.enable-lifecycle
+    ports:
+      - "10.0.0.3:9090:9090"          # infra net: reachable from hermes / other CTs
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring_network
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "10.0.0.3:9093:9093"
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - /etc/komodo/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - monitoring_network
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://grafana.lab.marioverde.com.br
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "127.0.0.1:3000:3000"         # UI is served by Traefik
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.lab.marioverde.com.br`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=cloudflare"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  loki:
+    image: grafana/loki:3.7.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - monitoring_network
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    user: "0:0"                        # needs to read /var/run/docker.sock
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring_network
+
+  pve-exporter:
+    image: prompve/prometheus-pve-exporter:3.10.1
+    restart: unless-stopped
+    environment:
+      # env-based config: pve-exporter picks these up when PVE_USER is set
+      PVE_USER: ${PVE_USER}
+      PVE_TOKEN_NAME: ${PVE_TOKEN_NAME}
+      PVE_TOKEN_VALUE: ${PVE_TOKEN_VALUE}
+      PVE_VERIFY_SSL: "false"          # 10.0.0.1 uses a self-signed cert
+    networks:
+      - monitoring_network
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project
+    ports:
+      - "127.0.0.1:8080:8080"          # debugging only
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring_network
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    ports:
+      - "127.0.0.1:9100:9100"          # debugging only
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring_network
+
+networks:
+  monitoring_network:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  loki_data:
+  alloy_data:

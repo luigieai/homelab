@@ -1,0 +1,64 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    lab: homelab
+    node: mirage
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Alertmanager (if this is down, no alerts leave the lab)
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+  # Host OS metrics inside docker01 (mounted host rootfs)
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Proxmox node mirage (node_exporter installed as a Debian package)
+  - job_name: node-mirage
+    static_configs:
+      - targets: ['10.0.0.1:9100']
+
+  # Docker containers on docker01
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Proxmox API: node + all LXC/VM + storages, through prometheus-pve-exporter.
+  # cluster=1 triggers the cluster-level collectors (that is what yields
+  # pve_up{id="lxc/101"}, pve_memory_usage_bytes{id="lxc/101"}, etc).
+  - job_name: pve
+    metrics_path: /pve
+    params:
+      module: [default]
+      cluster: ['1']
+      node: ['1']
+    static_configs:
+      - targets: ['10.0.0.1']          # the PVE API endpoint the exporter talks to
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: pve-exporter:9221
+
+  # Loki itself (cheap, helps when debugging the log pipeline)
+  - job_name: loki
+    static_configs:
+      - targets: ['loki:3100']
