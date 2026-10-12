@@ -1,0 +1,17 @@
+# Data sources are provisioned from the repo so a fresh deploy needs no manual Grafana
+# setup. Dashboards are still imported by ID by hand - see README.md.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 30s        # matches global.scrape_interval in prometheus.yml
+      httpMethod: POST
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100

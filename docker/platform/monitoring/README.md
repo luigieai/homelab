@@ -61,6 +61,9 @@ Put the printed secret in the Komodo stack environment as `PVE_TOKEN_VALUE`
   `1860` (Node Exporter Full), `14282` (cAdvisor), `10347` (Proxmox via
   Prometheus). If an ID is retired, search the same name in the import dialog and
   take the top result; wire the datasource to `Prometheus` / `Loki`.
+  The `Prometheus` and `Loki` data sources are provisioned from the repo
+  (`grafana/provisioning/datasources/datasources.yml`), so a fresh deploy needs no
+  manual data source setup.
 
 ## Troubleshooting
 
