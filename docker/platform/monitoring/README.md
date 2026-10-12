@@ -60,8 +60,10 @@ Put the printed secret in the Komodo stack environment as `PVE_TOKEN_VALUE`
 - **Test that alerts reach Telegram**:
   `docker compose exec alertmanager amtool alert add alertname=Test severity=info --alertmanager.url=http://localhost:9093`
   — you should get a Telegram message within ~30s, then it resolves in ~5 min.
-- **Query logs**: Grafana → Explore → Loki datasource, `{container="traefik-traefik"}`
-  (labels: `container`, `compose_project`, `service`).
+- **Query logs**: Grafana → Explore → Loki datasource, e.g. `{compose_project="iam"}`
+  (labels: `container`, `compose_project`, `service`). Traefik only emits JSON access
+  lines when its `accesslog` is enabled, so `{container="traefik-traefik"}` is usually
+  empty — pick a container that writes to stdout, e.g. `{container="komodo-core-1"}`.
 - **Retention**: metrics via `PROM_RETENTION` / `PROM_RETENTION_SIZE` in the stack
   environment; logs via `limits_config.retention_period` in `loki/loki-config.yaml`.
 - **Dashboards to import** (Grafana → Dashboards → New → Import by ID):

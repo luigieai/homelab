@@ -1,7 +1,7 @@
 ## Telegram credentials are read from files, never from this (public) repo.
-## On docker01:
-##   /etc/komodo/secrets/telegram_bot_token   (0600, no trailing newline)
-##   /etc/komodo/secrets/telegram_chat_id     (0600, no trailing newline)
+## On docker01 (mounted read-only at /etc/alertmanager-secrets/ in the container):
+##   /etc/komodo/secrets/telegram_bot_token   (0640 root:65534, no trailing newline)
+##   /etc/komodo/secrets/telegram_chat_id     (0640 root:65534, no trailing newline)
 
 global:
   resolve_timeout: 5m
