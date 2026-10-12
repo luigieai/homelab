@@ -22,14 +22,21 @@ guests and the Docker containers on `docker01`.
   Alertmanager reads them from files on the docker01 host:
 
   ```sh
-  install -d -m 700 /etc/komodo/secrets
+  install -d -m 750 -o root -g 65534 /etc/komodo/secrets
   printf '%s' '<token>'    > /etc/komodo/secrets/telegram_bot_token
   printf '%s' '<chat id>'  > /etc/komodo/secrets/telegram_chat_id
-  chmod 600 /etc/komodo/secrets/telegram_*
+  chmod 640 /etc/komodo/secrets/telegram_*
   ```
 
   No trailing newline (Alertmanager parses the chat id as an integer). After
   changing a file, `docker compose up -d --force-recreate alertmanager`.
+
+  The `alertmanager` container runs as `nobody` (uid/gid 65534), so the files must be
+  readable by gid 65534 — `0600 root:root` makes every notification fail with
+  `permission denied` on `/etc/alertmanager-secrets/telegram_bot_token`, even though the
+  files look correct on the host. They are bind-mounted read-only at
+  `/etc/alertmanager-secrets/` (deliberately outside the read-only `./alertmanager` config
+  bind, which cannot host a nested mountpoint).
 
 ## Proxmox token
 
