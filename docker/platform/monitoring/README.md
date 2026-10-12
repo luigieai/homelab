@@ -50,7 +50,7 @@ Authentik and its credentials reach the container from the **Komodo stack enviro
 * Roles: `authentik Admins` -> `GrafanaAdmin`, any other authenticated user -> `Viewer`.
 * Data sources carry fixed uids (`prometheus`, `loki`) because the provisioned dashboards reference them by
   uid — renaming a data source or dropping its `uid` breaks every panel.
-* `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN` is `"true"`, so `/` sends anonymous visitors straight to Authentik; the local `admin` account still works at `/login` for an emergency.
+* `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN` is `"true"`, so `/` sends anonymous visitors straight to Authentik; the local `admin` account is still available as an emergency login at `/login?disableAutoLogin=true`.
 * If login fails, `docker logs monitoring-grafana-1 | grep -i oauth` shows the exchange error, and
   `docker exec monitoring-grafana-1 wget -qO- https://auth.lab.marioverde.com.br/application/o/userinfo/`
   proves the container's network path to Authentik.
