@@ -21,6 +21,7 @@ Base infrastructure — the most critical and sensitive pieces. Everything else 
 - **Cloudflare DDNS** — keeps DNS records in sync with the home WAN IP
 - **dns-sync** — watches Docker containers labeled `homelab.wan-expose=true` and creates/removes matching Cloudflare DNS records as they start/stop, so a `.lab` service can opt into WAN exposure on the fly
 - **Container Registry** — private Docker image registry (Distribution v3) with a browsing UI, no auth yet (internal `.lab` only)
+- **Monitoring** — Prometheus + Grafana + Alertmanager + Loki/Alloy on docker01; node, LXC/VM, container metrics and Docker logs, alerts to Telegram
 
 ### Corporate
 Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki/docs. All other services should integrate with these.
@@ -46,6 +47,7 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 | dns-sync | Platform | — |
 | Container Registry | Platform | `registry.lab.marioverde.com.br` |
 | Registry UI | Platform | `registry-ui.lab.marioverde.com.br` |
+| Grafana (monitoring) | Platform | `grafana.lab.marioverde.com.br` |
 | CoreDNS (LXC) | Corporate | — |
 | authentik | Corporate | `auth.lab.marioverde.com.br` / `auth.app.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
