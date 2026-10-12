@@ -64,13 +64,14 @@ services:
       GF_AUTH_GENERIC_OAUTH_API_URL: https://auth.lab.marioverde.com.br/application/o/userinfo/
       GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups[*], 'authentik Admins') && 'GrafanaAdmin' || 'Viewer'"
       GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
-      GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN: "false"
+      GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN: "true"
       TZ: ${TZ:-America/Sao_Paulo}
     ports:
       - "127.0.0.1:3000:3000"         # UI is served by Traefik
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - monitoring_network
     labels:

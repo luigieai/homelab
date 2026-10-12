@@ -48,8 +48,9 @@ Authentik and its credentials reach the container from the **Komodo stack enviro
   `https://grafana.lab.marioverde.com.br/login/generic_oauth`, scopes `openid profile email`
   (the `profile` mapping must emit `groups` — Grafana maps roles from it).
 * Roles: `authentik Admins` -> `GrafanaAdmin`, any other authenticated user -> `Viewer`.
-* The local `admin` account keeps working. Set `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN` to `"true"` when you
-  want the login page to skip straight to Authentik.
+* Data sources carry fixed uids (`prometheus`, `loki`) because the provisioned dashboards reference them by
+  uid — renaming a data source or dropping its `uid` breaks every panel.
+* `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN` is `"true"`, so `/` sends anonymous visitors straight to Authentik; the local `admin` account still works at `/login` for an emergency.
 * If login fails, `docker logs monitoring-grafana-1 | grep -i oauth` shows the exchange error, and
   `docker exec monitoring-grafana-1 wget -qO- https://auth.lab.marioverde.com.br/application/o/userinfo/`
   proves the container's network path to Authentik.
@@ -82,13 +83,10 @@ Put the printed secret in the Komodo stack environment as `PVE_TOKEN_VALUE`
   empty — pick a container that writes to stdout, e.g. `{container="komodo-core-1"}`.
 - **Retention**: metrics via `PROM_RETENTION` / `PROM_RETENTION_SIZE` in the stack
   environment; logs via `limits_config.retention_period` in `loki/loki-config.yaml`.
-- **Dashboards to import** (Grafana → Dashboards → New → Import by ID):
-  `1860` (Node Exporter Full), `14282` (cAdvisor), `10347` (Proxmox via
-  Prometheus). If an ID is retired, search the same name in the import dialog and
-  take the top result; wire the datasource to `Prometheus` / `Loki`.
-  The `Prometheus` and `Loki` data sources are provisioned from the repo
-  (`grafana/provisioning/datasources/datasources.yml`), so a fresh deploy needs no
-  manual data source setup.
+- **Dashboards**: provisioned from the repo (`grafana/dashboards/*.json` through
+  `grafana/provisioning/dashboards/dashboards.yml`) — Node Exporter Full, Cadvisor exporter and Proxmox via
+  Prometheus. Edit them in the UI if you must, but the next deploy overwrites UI edits: export the change
+  back into `grafana/dashboards/` instead.
 
 ## Troubleshooting
 

@@ -1,0 +1,14 @@
+# Dashboard provider: everything in ../dashboards is provisioned from the repo, so a rebuilt
+# environment comes up with the same three dashboards and no manual import step.
+apiVersion: 1
+
+providers:
+  - name: homelab
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

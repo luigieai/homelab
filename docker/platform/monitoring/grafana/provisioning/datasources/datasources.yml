@@ -4,6 +4,7 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -12,6 +13,7 @@ datasources:
       timeInterval: 30s        # matches global.scrape_interval in prometheus.yml
       httpMethod: POST
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
