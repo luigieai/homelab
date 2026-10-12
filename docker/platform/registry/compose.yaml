@@ -11,6 +11,9 @@ services:
     restart: unless-stopped
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_DEBUG_ADDR: ":5001"
+      REGISTRY_HTTP_DEBUG_PROMETHEUS_ENABLED: "true"
+      REGISTRY_HTTP_DEBUG_PROMETHEUS_PATH: "/metrics"
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: "[https://registry-ui.lab.marioverde.com.br]"
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: "[HEAD,GET,OPTIONS,DELETE]"
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: "[Accept,Cache-Control]"
@@ -19,6 +22,8 @@ services:
       - registry_data:/var/lib/registry
     networks:
       - registry_network
+    ports:
+      - "10.0.0.3:5001:5001"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5000/v2/"]
       interval: 30s

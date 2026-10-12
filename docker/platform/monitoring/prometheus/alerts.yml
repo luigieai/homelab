@@ -148,7 +148,7 @@ groups:
           summary: "Container {{ $labels.name }} is above 90% of its memory limit"
 
       - alert: MetricsCollectorDown
-        expr: up{job=~"node|cadvisor|node-mirage"} == 0
+        expr: up{job=~"node|cadvisor|node-mirage|coredns|traefik|registry|postgres"} == 0
         for: 10m
         labels:
           severity: warning

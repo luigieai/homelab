@@ -5,7 +5,7 @@ guests and the Docker containers on `docker01`.
 
 | Component | Role | Port (host) |
 |---|---|---|
-| Prometheus | metrics TSDB + alert rules | `10.0.0.3:9090` |
+| Prometheus | metrics TSDB + alert rules (also scrapes coredns 10.0.0.4:9153, traefik 10.0.0.3:8082, registry 10.0.0.3:5001 — see "Metrics endpoints owned by other services" below) | `10.0.0.3:9090` |
 | Alertmanager | routing to Telegram | `10.0.0.3:9093` |
 | Grafana | dashboards | `127.0.0.1:3000`, UI at <https://grafana.lab.marioverde.com.br> |
 | Loki | log store (7 days) | internal `loki:3100` |
@@ -13,6 +13,7 @@ guests and the Docker containers on `docker01`.
 | prometheus-pve-exporter | Proxmox API → node/CT/VM/storage metrics | internal `pve-exporter:9221` |
 | cAdvisor | per-container metrics | `127.0.0.1:8080` (debug) |
 | node-exporter | host OS metrics | `127.0.0.1:9100` (docker01), `10.0.0.1:9100` (mirage) |
+| postgres-exporter | `pg_*` metrics from the lab Postgres (CT 103, `10.0.0.2`) | internal `postgres-exporter:9187` |
 
 ## Secrets
 
@@ -84,9 +85,22 @@ Put the printed secret in the Komodo stack environment as `PVE_TOKEN_VALUE`
 - **Retention**: metrics via `PROM_RETENTION` / `PROM_RETENTION_SIZE` in the stack
   environment; logs via `limits_config.retention_period` in `loki/loki-config.yaml`.
 - **Dashboards**: provisioned from the repo (`grafana/dashboards/*.json` through
-  `grafana/provisioning/dashboards/dashboards.yml`) — Node Exporter Full, Cadvisor exporter and Proxmox via
-  Prometheus. Edit them in the UI if you must, but the next deploy overwrites UI edits: export the change
+  `grafana/provisioning/dashboards/dashboards.yml`) — Node Exporter Full, Cadvisor exporter, Proxmox via
+  Prometheus, CoreDNS, Traefik, Docker Registry, PostgreSQL Database. Edit them in the UI if you must, but the next deploy overwrites UI edits: export the change
   back into `grafana/dashboards/` instead.
+
+## Metrics endpoints owned by other services
+
+These are enabled where the metrics are produced, not in this stack, and all bind to the infra network only:
+
+| Service | Endpoint | Enabled by |
+|---|---|---|
+| CoreDNS (dns01, CT 104) | `10.0.0.4:9153` | `prometheus :9153` in `/etc/coredns/Corefile` **on dns01** — hand-managed, not in this repo |
+| Traefik (docker01) | `10.0.0.3:8082` | `--entrypoints.metrics.address` + `--metrics.prometheus*` in `docker/platform/traefik/compose.yaml` |
+| Registry (docker01) | `10.0.0.3:5001` | `REGISTRY_HTTP_DEBUG_*` env + a published `5001` in `docker/platform/registry/compose.yaml` |
+| PostgreSQL (CT 103) | internal `postgres-exporter:9187` | `postgres-exporter` service in this stack, DSN from the Komodo stack environment |
+
+Renaming or moving any of them means editing the scrape job in `prometheus/prometheus.yml` too.
 
 ## Troubleshooting
 
