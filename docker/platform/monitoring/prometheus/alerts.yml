@@ -18,7 +18,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.instance }} has {{ printf \"%.2f\" (div $value 1073741824) }} GiB available RAM"
+          summary: "{{ $labels.instance }} has {{ $value | humanize1024 }} available RAM"
 
       - alert: HostSwapInUse
         expr: (1 - node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes) * 100 > 60
@@ -80,7 +80,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "mirage CPU at {{ printf \"%.0f\" (mul $value 100) }}% for 15m"
+          summary: "mirage CPU at {{ $value | humanizePercentage }} for 15m"
 
       - alert: PveNodeMemoryHigh
         expr: (pve_memory_usage_bytes{id="node/mirage"} / pve_memory_size_bytes{id="node/mirage"}) > 0.85
@@ -88,7 +88,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "mirage RAM at {{ printf \"%.0f\" (mul $value 100) }}% of {{ printf \"%.1f\" (div (pve_memory_size_bytes{id=\"node/mirage\"}) 1073741824) }} GiB"
+          summary: "mirage RAM at {{ $value | humanizePercentage }} for 15m"
 
       - alert: PveGuestMemoryHigh
         expr: (pve_memory_usage_bytes{id=~"lxc/.+|qemu/.+"} / pve_memory_size_bytes{id=~"lxc/.+|qemu/.+"}) > 0.9
@@ -96,7 +96,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Guest {{ $labels.id }} is using {{ printf \"%.0f\" (mul $value 100) }}% of its memory limit"
+          summary: "Guest {{ $labels.id }} is using {{ $value | humanizePercentage }} of its memory limit"
 
       - alert: PveGuestDiskHigh
         expr: (pve_disk_usage_bytes{id=~"lxc/.+|qemu/.+"} / pve_disk_size_bytes{id=~"lxc/.+|qemu/.+"}) > 0.85
@@ -104,7 +104,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Guest {{ $labels.id }} disk is {{ printf \"%.0f\" (mul $value 100) }}% full"
+          summary: "Guest {{ $labels.id }} disk is {{ $value | humanizePercentage }} full"
 
       - alert: PveStorageFillingUp
         expr: (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"}) > 0.9
@@ -112,7 +112,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "PVE storage {{ $labels.id }} is {{ printf \"%.0f\" (mul $value 100) }}% full"
+          summary: "PVE storage {{ $labels.id }} is {{ $value | humanizePercentage }} full"
 
   - name: containers
     rules:
