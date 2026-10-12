@@ -1,6 +1,16 @@
 # Data sources are provisioned from the repo so a fresh deploy needs no manual Grafana
-# setup. Dashboards are still imported by ID by hand - see README.md.
+# setup. Dashboards are provisioned from the repo too - see README.md.
 apiVersion: 1
+
+# One-shot migration: the data sources below used to live under Grafana-generated uids. Grafana
+# matches provisioned data sources by uid, so the old rows must be removed by name before the
+# file's entries can take over the stable uids the dashboards reference. This block is deleted in
+# the follow-up commit once the deploy has proved it worked.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+  - name: Loki
+    orgId: 1
 
 datasources:
   - name: Prometheus
