@@ -38,6 +38,22 @@ guests and the Docker containers on `docker01`.
   `/etc/alertmanager-secrets/` (deliberately outside the read-only `./alertmanager` config
   bind, which cannot host a nested mountpoint).
 
+## SSO (Authentik)
+
+Grafana logs users in through Authentik (OIDC, `auth.generic_oauth`). The provider is created in
+Authentik and its credentials reach the container from the **Komodo stack environment**
+(`GRAFANA_OIDC_CLIENT_ID`, `GRAFANA_OIDC_CLIENT_SECRET`) — never from this repo.
+
+* Provider: OAuth2/OpenID, client type Confidential, redirect URI
+  `https://grafana.lab.marioverde.com.br/login/generic_oauth`, scopes `openid profile email`
+  (the `profile` mapping must emit `groups` — Grafana maps roles from it).
+* Roles: `authentik Admins` -> `GrafanaAdmin`, any other authenticated user -> `Viewer`.
+* The local `admin` account keeps working. Set `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN` to `"true"` when you
+  want the login page to skip straight to Authentik.
+* If login fails, `docker logs monitoring-grafana-1 | grep -i oauth` shows the exchange error, and
+  `docker exec monitoring-grafana-1 wget -qO- https://auth.lab.marioverde.com.br/application/o/userinfo/`
+  proves the container's network path to Authentik.
+
 ## Proxmox token
 
 Read-only token on `mirage` (PVEAuditor has only `*.Audit` privileges):
