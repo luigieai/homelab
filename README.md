@@ -28,6 +28,7 @@ Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki
 
 - **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access
 - **authentik** - IAM/OAuth provider (replaces the previously used lldap)
+- **Wiki.js** — knowledge base / documentation wiki (`wiki.lab.marioverde.com.br`)
 
 ### Departments
 Apps organized by area/objective, each isolated by domain and purpose (**Active development**):
@@ -50,6 +51,7 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 | Grafana (monitoring) | Platform | `grafana.lab.marioverde.com.br` |
 | CoreDNS (LXC) | Corporate | — |
 | authentik | Corporate | `auth.lab.marioverde.com.br` / `auth.app.marioverde.com.br` |
+| Wiki.js 3 | Corporate | `wiki.lab.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
 | RomM | Gaming servers | `romm.lab.marioverde.com.br` |
 | Foundry VTT | Gaming servers | `foundryvtt.lab.marioverde.com.br` / `foundryvtt.app.marioverde.com.br` |

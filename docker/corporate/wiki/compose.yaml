@@ -1,0 +1,42 @@
+###################################
+# WIKI.JS 3 — CORPORATE WIKI      #
+###################################
+## Knowledge base / docs for the lab. Docs: https://docs.js.wiki/setup/installation
+## The database is NOT part of this stack: it is the lab PostgreSQL on CT 103 (10.0.0.2).
+## Values come from .env, which Komodo writes from the stack's Environment settings.
+
+services:
+  wiki:
+    image: ghcr.io/requarks/wiki:${WIKI_VERSION:-3.0.0-beta.658}
+    restart: unless-stopped
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-wiki}
+      DB_USER: ${DB_USER:-wikijs}
+      DB_PASS: ${DB_PASS}
+      DB_SSL: "false"
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      ## Root administrator — honoured only on the very first boot
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASS: ${ADMIN_PASS}
+    networks:
+      - corporate_network
+    healthcheck:
+      ## The image ships Node, not wget/curl; any non-5xx answer means the HTTP server is up.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      start_period: 60s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wiki.rule=Host(`wiki.lab.marioverde.com.br`)"
+      - "traefik.http.routers.wiki.entrypoints=websecure"
+      - "traefik.http.routers.wiki.tls.certresolver=cloudflare"
+      - "traefik.http.services.wiki.loadbalancer.server.port=3000"
+
+networks:
+  corporate_network:
+    driver: bridge
