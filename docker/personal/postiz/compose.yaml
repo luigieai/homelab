@@ -34,6 +34,9 @@ services:
       STORAGE_PROVIDER: local
       UPLOAD_DIRECTORY: /uploads
       NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: /uploads
+      ## Provider defaults
+      ## Default Mastodon instance offered in the connect flow (Luigi's home instance).
+      MASTODON_URL: ${MASTODON_URL}
       ## Authentik OIDC (generic OAuth)
       POSTIZ_GENERIC_OAUTH: "true"
       NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME: ${NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME}
