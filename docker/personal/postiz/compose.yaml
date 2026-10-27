@@ -1,0 +1,181 @@
+###################################
+# POSTIZ — SOCIAL SCHEDULER       #
+###################################
+## Schedules and publishes posts to social platforms.
+## Docs: https://docs.postiz.com/self-host/installation/docker-compose
+##
+## One image serves the UI and the API on container port 5000; Traefik reaches it over the
+## bridge network, so nothing is published on the host.
+## PostgreSQL 17 + Redis 7 + Temporal 1.28 back the scheduler.
+## Deviations from the upstream compose file are listed in README.md ("Deviations").
+## Values come from .env, which Komodo writes from the stack's Environment settings.
+
+services:
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:${POSTIZ_VERSION}
+    restart: unless-stopped
+    environment:
+      ## Core (all required — Postiz validates them on boot)
+      MAIN_URL: ${MAIN_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postiz-postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://postiz-redis:6379
+      TEMPORAL_ADDRESS: temporal:7233
+      ## Behaviour
+      ## DISABLE_REGISTRATION MUST stay "false": "true" also disables OIDC sign-in.
+      IS_GENERAL: "true"
+      DISABLE_REGISTRATION: "false"
+      RUN_CRON: "true"
+      API_LIMIT: ${API_LIMIT}
+      ## Storage — local filesystem, served back through /uploads
+      STORAGE_PROVIDER: local
+      UPLOAD_DIRECTORY: /uploads
+      NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: /uploads
+      ## Authentik OIDC (generic OAuth)
+      POSTIZ_GENERIC_OAUTH: "true"
+      NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME: ${NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME}
+      NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL: ${NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL}
+      POSTIZ_OAUTH_URL: ${POSTIZ_OAUTH_URL}
+      POSTIZ_OAUTH_AUTH_URL: ${POSTIZ_OAUTH_AUTH_URL}
+      POSTIZ_OAUTH_TOKEN_URL: ${POSTIZ_OAUTH_TOKEN_URL}
+      POSTIZ_OAUTH_USERINFO_URL: ${POSTIZ_OAUTH_USERINFO_URL}
+      POSTIZ_OAUTH_CLIENT_ID: ${POSTIZ_OAUTH_CLIENT_ID}
+      POSTIZ_OAUTH_CLIENT_SECRET: ${POSTIZ_OAUTH_CLIENT_SECRET}
+      POSTIZ_OAUTH_SCOPE: ${POSTIZ_OAUTH_SCOPE}
+    volumes:
+      - postiz_uploads:/uploads
+    networks:
+      - postiz_network
+      - temporal_network
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    healthcheck:
+      ## Image ships Node (not curl/wget); any non-5xx answer means the HTTP server is up.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.postiz.rule=Host(`postiz.lab.marioverde.com.br`)"
+      - "traefik.http.routers.postiz.entrypoints=websecure"
+      - "traefik.http.routers.postiz.tls.certresolver=cloudflare"
+      - "traefik.http.services.postiz.loadbalancer.server.port=5000"
+
+  postiz-postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postiz_postgres:/var/lib/postgresql/data
+    networks:
+      - postiz_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postiz-redis:
+    image: redis:7.2
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - postiz_redis:/data
+    networks:
+      - postiz_network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  ## ------------------------- Temporal -------------------------
+  ## Postiz >= 2.12 drives scheduled publishing through Temporal workflows.
+  temporal-postgresql:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD}
+    volumes:
+      - temporal_postgres:/var/lib/postgresql/data
+    networks:
+      - temporal_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  temporal:
+    image: temporalio/auto-setup:1.28.1
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD}
+      POSTGRES_SEEDS: temporal-postgresql
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      TEMPORAL_NAMESPACE: default
+      ## No ENABLE_ES: SQL visibility instead of the upstream Elasticsearch container (~1 GB saved).
+      ## Postiz only submits/lists its own workflows; it never uses advanced-visibility search.
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    networks:
+      - temporal_network
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: https://temporal.lab.marioverde.com.br
+    networks:
+      - temporal_network
+    depends_on:
+      temporal:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.temporal.rule=Host(`temporal.lab.marioverde.com.br`)"
+      - "traefik.http.routers.temporal.entrypoints=websecure"
+      - "traefik.http.routers.temporal.tls.certresolver=cloudflare"
+      - "traefik.http.services.temporal.loadbalancer.server.port=8080"
+
+networks:
+  postiz_network:
+    driver: bridge
+  temporal_network:
+    driver: bridge
+
+volumes:
+  postiz_uploads:
+  postiz_postgres:
+  postiz_redis:
+  temporal_postgres:

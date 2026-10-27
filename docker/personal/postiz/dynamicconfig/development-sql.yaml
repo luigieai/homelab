@@ -1,0 +1,8 @@
+## Vendored from gitroomhq/postiz-docker-compose (dynamicconfig/development-sql.yaml).
+## Temporal's auto-setup container reads this through DYNAMIC_CONFIG_FILE_PATH.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true # Dev setup only. Please don't turn this on in production.
+    constraints: {}

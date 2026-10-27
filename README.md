@@ -53,6 +53,7 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 | authentik | Corporate | `auth.lab.marioverde.com.br` / `auth.app.marioverde.com.br` |
 | Wiki.js 3 | Corporate | `wiki.lab.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
+| Postiz | Personal | `postiz.lab.marioverde.com.br` |
 | RomM | Gaming servers | `romm.lab.marioverde.com.br` |
 | Foundry VTT | Gaming servers | `foundryvtt.lab.marioverde.com.br` / `foundryvtt.app.marioverde.com.br` |
 | TeamSpeak 6 | Gaming servers | — (direct port 9987/udp, 30033/tcp — not behind Traefik) |
