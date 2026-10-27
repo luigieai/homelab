@@ -106,6 +106,29 @@ services:
 
   ## ------------------------- Temporal -------------------------
   ## Postiz >= 2.12 drives scheduled publishing through Temporal workflows.
+  ## Postiz needs advanced visibility: see the ENABLE_ES note on the temporal service below.
+  temporal-elasticsearch:
+    image: elasticsearch:7.17.27
+    restart: unless-stopped
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=true
+      - cluster.routing.allocation.disk.watermark.low=512mb
+      - cluster.routing.allocation.disk.watermark.high=256mb
+      - cluster.routing.allocation.disk.watermark.flood_stage=128mb
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.security.enabled=false
+    volumes:
+      - temporal_elasticsearch:/usr/share/elasticsearch/data
+    networks:
+      - temporal_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS \"http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s\" || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
   temporal-postgresql:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -134,14 +157,20 @@ services:
       POSTGRES_SEEDS: temporal-postgresql
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
       TEMPORAL_NAMESPACE: default
-      ## No ENABLE_ES: SQL visibility instead of the upstream Elasticsearch container (~1 GB saved).
-      ## Postiz only submits/lists its own workflows; it never uses advanced-visibility search.
+      ## Advanced (Elasticsearch) visibility. NOT optional: Postiz registers more than three Text
+      ## custom search attributes on boot, and the standard SQL visibility store refuses that
+      ## ("cannot have more than 3 search attribute of type Text"), which crashloops the backend.
+      ENABLE_ES: "true"
+      ES_SEEDS: temporal-elasticsearch
+      ES_VERSION: v7
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
     networks:
       - temporal_network
     depends_on:
       temporal-postgresql:
+        condition: service_healthy
+      temporal-elasticsearch:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
@@ -179,3 +208,4 @@ volumes:
   postiz_postgres:
   postiz_redis:
   temporal_postgres:
+  temporal_elasticsearch:

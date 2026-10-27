@@ -9,7 +9,7 @@ Social-media scheduler (Personal layer). Frontend + API + uploads on one hostnam
 | Temporal UI | <https://temporal.lab.marioverde.com.br> (workflow debugging, LAN only) |
 | Database | in-stack `postgres:17-alpine` (Postiz pins PG 17 and runs Prisma migrations on boot) |
 | Cache / queue | in-stack `redis:7.2` |
-| Workflows | `temporalio/auto-setup:1.28.1` on its own `postgres:16-alpine`, SQL visibility (no Elasticsearch) |
+| Workflows | `temporalio/auto-setup:1.28.1` on its own `postgres:16-alpine`, advanced visibility via `elasticsearch:7.17.27` |
 | Uploads | named volume `postiz_uploads` mounted at `/uploads` |
 | Deployed by | Komodo stack `postiz`, run directory `docker/personal/postiz`, branch `master` |
 
@@ -65,11 +65,22 @@ Enabling a third-party OAuth app still disables the GitHub/Google login provider
 | Upstream | Here | Why |
 |---|---|---|
 | `ports: 4007:5000` on the app | no host port; Traefik routes to 5000 | Traefik runs `network_mode: host` |
-| Elasticsearch 7.17 + `ENABLE_ES=true` for Temporal | SQL visibility, no ES container | ~1 GB of RAM on an 8 GB box already at ~3.5 GB; Postiz never uses advanced visibility |
 | `temporal-admin-tools` | dropped | the `temporal` container already ships the CLI (`temporal operator cluster health` is its healthcheck) |
 | `spotlight` (debug profile) | dropped | Sentry debugging, unused here |
 | `postiz-config:/config/` volume | dropped | only needed for the `postiz.env`-file style of configuration |
 | `container_name:` on every service | dropped | Compose project (= stack name) already gives stable names, and avoids collisions on recreate |
+
+## Why Elasticsearch is in this stack
+
+Dropping it looks tempting on an 8 GB box, and it does **not** work. On boot Postiz calls Temporal's
+`addSearchAttributes` for four Text attributes; the standard (SQL) visibility store caps Text custom
+attributes at three and answers
+
+    Unable to create search attributes: cannot have more than 3 search attribute of type Text
+
+The backend then crashloops (`pm2 logs backend`), the container is still "healthy" because the frontend
+and nginx answer on :5000, and `/api/health` returns 502 through Traefik. Elasticsearch gives Temporal
+advanced visibility and the backend starts. Keep it.
 
 ## Upgrade
 
