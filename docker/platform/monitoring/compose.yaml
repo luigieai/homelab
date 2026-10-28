@@ -126,7 +126,7 @@ services:
       - /dev/kmsg
     command:
       - --docker_only=true
-      - --housekeeping_interval=30s
+      - --housekeeping_interval=120s
       - --store_container_labels=false
       - --whitelisted_container_labels=com.docker.compose.project
     ports:
