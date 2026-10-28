@@ -116,39 +116,8 @@ groups:
 
   - name: containers
     rules:
-      # cAdvisor keeps reporting container_last_seen for containers that stop, so
-      # "not seen for 5 minutes" means the container died or was removed.
-      # To only alert on business-critical containers, append
-      # name=~"traefik-traefik|komodo-core-1|iam-authentik-server-1|forgejo-forgejo-1|registry-registry-1"
-      # to the expression below.
-      - alert: ContainerMissing
-        expr: (time() - container_last_seen{name!="", image!=""}) > 300
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Container {{ $labels.name }} has not been seen for 5+ minutes"
-
-      - alert: ContainerRestarting
-        expr: changes(container_start_time_seconds{name!="", image!=""}[1h]) > 3
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Container {{ $labels.name }} restarted {{ printf \"%.0f\" $value }} times in the last hour"
-
-      - alert: ContainerMemoryHigh
-        expr: |
-          (container_memory_working_set_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) > 0.9
-          and container_spec_memory_limit_bytes{name!=""} > 0
-        for: 15m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Container {{ $labels.name }} is above 90% of its memory limit"
-
       - alert: MetricsCollectorDown
-        expr: up{job=~"node|cadvisor|node-mirage|coredns|traefik|registry|postgres"} == 0
+        expr: up{job=~"node|node-mirage|coredns|traefik|registry|postgres"} == 0
         for: 10m
         labels:
           severity: warning

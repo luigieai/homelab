@@ -11,7 +11,6 @@ guests and the Docker containers on `docker01`.
 | Loki | log store (7 days) | internal `loki:3100` |
 | Alloy | tails container logs, pushes to Loki | internal |
 | prometheus-pve-exporter | Proxmox API → node/CT/VM/storage metrics | internal `pve-exporter:9221` |
-| cAdvisor | per-container metrics | `127.0.0.1:8080` (debug) |
 | node-exporter | host OS metrics | `127.0.0.1:9100` (docker01), `10.0.0.1:9100` (mirage) |
 | postgres-exporter | `pg_*` metrics from the lab Postgres (CT 103, `10.0.0.2`) | internal `postgres-exporter:9187` |
 
@@ -85,7 +84,7 @@ Put the printed secret in the Komodo stack environment as `PVE_TOKEN_VALUE`
 - **Retention**: metrics via `PROM_RETENTION` / `PROM_RETENTION_SIZE` in the stack
   environment; logs via `limits_config.retention_period` in `loki/loki-config.yaml`.
 - **Dashboards**: provisioned from the repo (`grafana/dashboards/*.json` through
-  `grafana/provisioning/dashboards/dashboards.yml`) — Node Exporter Full, Cadvisor exporter, Proxmox via
+  `grafana/provisioning/dashboards/dashboards.yml`) — Node Exporter Full, Proxmox via
   Prometheus, CoreDNS, Traefik, Docker Registry, PostgreSQL Database. Edit them in the UI if you must, but the next deploy overwrites UI edits: export the change
   back into `grafana/dashboards/` instead.
 
@@ -107,5 +106,3 @@ Renaming or moving any of them means editing the scrape job in `prometheus/prome
 - No Telegram alerts: `docker compose logs alertmanager | tail -30`, verify the
   secret files exist and are readable, then run the `amtool` test above.
 - Empty dashboards: Prometheus → Status → Targets — every job must be `UP`.
-- Container metrics missing: `docker compose logs cadvisor | tail -30` and
-  confirm the flags in `compose.yaml` match `docker run --rm ghcr.io/google/cadvisor:v0.60.6 --help`.

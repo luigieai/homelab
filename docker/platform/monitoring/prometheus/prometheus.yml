@@ -34,11 +34,6 @@ scrape_configs:
     static_configs:
       - targets: ['10.0.0.1:9100']
 
-  # Docker containers on docker01
-  - job_name: cadvisor
-    static_configs:
-      - targets: ['cadvisor:8080']
-
   # Proxmox API: node + all LXC/VM + storages, through prometheus-pve-exporter.
   # cluster=1 triggers the cluster-level collectors (that is what yields
   # pve_up{id="lxc/101"}, pve_memory_usage_bytes{id="lxc/101"}, etc).

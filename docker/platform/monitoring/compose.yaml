@@ -118,28 +118,6 @@ services:
     networks:
       - monitoring_network
 
-  cadvisor:
-    image: ghcr.io/google/cadvisor:v0.60.6
-    restart: unless-stopped
-    privileged: true
-    devices:
-      - /dev/kmsg
-    command:
-      - --docker_only=true
-      - --housekeeping_interval=120s
-      - --store_container_labels=false
-      - --whitelisted_container_labels=com.docker.compose.project
-    ports:
-      - "127.0.0.1:8080:8080"          # debugging only
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-    networks:
-      - monitoring_network
-
   node-exporter:
     image: prom/node-exporter:v1.12.1
     restart: unless-stopped
