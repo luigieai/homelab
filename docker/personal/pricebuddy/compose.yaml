@@ -53,8 +53,8 @@ services:
     networks:
       - pricebuddy_network
     healthcheck:
-      ## The image ships Python; the scraper API listens on 3000 inside the container.
-      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 3000), 5)"]
+      ## The image ships python3 (no `python` alias); the scraper API answers HTTP on 3000.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
