@@ -1,0 +1,68 @@
+#################################
+# PRICEBUDDY — personal layer   #
+#################################
+## Self-hosted price comparison tracker. Docs: https://pricebuddy.jez.me/installation.html
+## Adapted from the upstream docker-compose.yml (jez500/pricebuddy).
+##
+## Differences from upstream:
+## - The database is NOT part of this stack: it is the lab PostgreSQL on CT 103 (10.0.0.2),
+##   database `pricebuddy`, role `pricebuddy`. Nothing is published on the host.
+## - HTTP is fronted by Traefik (labels below); the app is never published on a port.
+## - APP_KEY and the first admin user come from .env, which Komodo writes from the stack's
+##   Environment settings, so a recreated container keeps the same encryption key.
+
+services:
+  app:
+    image: jez500/pricebuddy:v1.0.57
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ## Container-level constants: no secrets, nothing host-specific.
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      SESSION_SECURE_COOKIE: "true"
+      ## Traefik terminates TLS and forwards X-Forwarded-Proto.
+      TRUSTED_PROXIES: "*"
+      ## Scraping happens in the scraper container, never in the app container.
+      SCRAPER_BASE_URL: http://scraper:3000
+    volumes:
+      ## Sessions, logs and the app cache. Must survive `docker compose up -d` recreations,
+      ## otherwise every container restart signs users out.
+      - pricebuddy_storage:/app/storage
+    networks:
+      - pricebuddy_network
+    healthcheck:
+      ## /up is Laravel's built-in health route (bootstrap/app.php: health: '/up').
+      test: ["CMD", "php", "-r", "exit(@fopen('http://127.0.0.1/up', 'r') ? 0 : 1);"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pricebuddy.rule=Host(`price.lab.marioverde.com.br`)"
+      - "traefik.http.routers.pricebuddy.entrypoints=websecure"
+      - "traefik.http.routers.pricebuddy.tls.certresolver=cloudflare"
+      - "traefik.http.services.pricebuddy.loadbalancer.server.port=80"
+
+  scraper:
+    image: jez500/seleniumbase-scrapper:v1.0.1
+    restart: unless-stopped
+    networks:
+      - pricebuddy_network
+    healthcheck:
+      ## The image ships Python; the scraper API listens on 3000 inside the container.
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 3000), 5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+networks:
+  pricebuddy_network:
+    driver: bridge
+
+volumes:
+  pricebuddy_storage:
