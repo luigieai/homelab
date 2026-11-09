@@ -14,7 +14,7 @@ Homelab infrastructure running on a single home server. The `legacy/` directory 
 
 Container orchestration runs on **Docker Compose** with **Traefik v3.6** as the single ingress controller. Each directory under `docker/` is an independent stack deployed with `docker compose up -d`. The homelab is conceptually organized into layers, simulating company departments:
 - **Platform** — core infra (Proxmox, Docker Compose, Traefik, DNS)
-- **Corporate** — governance apps (IAM/OAuth, DNS, automation, wiki)
+- **Corporate** — governance apps (IAM/OAuth, DNS, automation)
 - **Departments** — app areas isolated by domain/objective (Development, Music/DJ, Gaming, Household, etc.)
 
 ## Traefik Networking Model

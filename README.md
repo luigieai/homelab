@@ -24,11 +24,10 @@ Base infrastructure — the most critical and sensitive pieces. Everything else 
 - **Monitoring** — Prometheus + Grafana + Alertmanager + Loki/Alloy on docker01; node, LXC/VM, container metrics and Docker logs, alerts to Telegram
 
 ### Corporate
-Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation, wiki/docs. All other services should integrate with these.
+Apps that govern and organize the lab: IAM/OAuth provider, DNS, automation. All other services should integrate with these.
 
 - **CoreDNS** - Hosted in a LXC Container, terminates the domain for local access
 - **authentik** - IAM/OAuth provider (replaces the previously used lldap)
-- **Wiki.js** — knowledge base / documentation wiki (`wiki.lab.marioverde.com.br`)
 
 ### Departments
 Apps organized by area/objective, each isolated by domain and purpose (**Active development**):
@@ -51,7 +50,6 @@ Apps organized by area/objective, each isolated by domain and purpose (**Active 
 | Grafana (monitoring) | Platform | `grafana.lab.marioverde.com.br` |
 | CoreDNS (LXC) | Corporate | — |
 | authentik | Corporate | `auth.lab.marioverde.com.br` / `auth.app.marioverde.com.br` |
-| Wiki.js 3 | Corporate | `wiki.lab.marioverde.com.br` |
 | Meerkat CRM | Personal | `meerkat.lab.marioverde.com.br` |
 | PriceBuddy | Personal | `price.lab.marioverde.com.br` |
 | RomM | Gaming servers | `romm.lab.marioverde.com.br` |
