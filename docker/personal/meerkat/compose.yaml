@@ -2,6 +2,10 @@
 #
 # Single-container with bundled frontend and backend (+ nginx)
 #
+# Upstream moved from github.com/fbuchner/meerkat-crm to
+# github.com/meerkatcrm/meerkat-crm, and images stopped being published to
+# ghcr.io/fbuchner/* after v1.7.1, so pull from the meerkatcrm org.
+#
 # USAGE:
 #   cp .env.example .env && edit .env, then:
 #   docker compose up -d
@@ -10,7 +14,7 @@
 #   uncomment the `build:` line below, then: docker compose up -d --build
 services:
   meerkat:
-    image: ghcr.io/fbuchner/meerkat-crm:${IMAGE_TAG:-latest}
+    image: ghcr.io/meerkatcrm/meerkat-crm:${IMAGE_TAG:-1.7.0}
     # build: .
     restart: unless-stopped
     env_file:
